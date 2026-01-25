@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+@layer base {
+    html,
+    body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        @apply bg-slate-100;
+    }
+    button{
+        cursor: pointer;
+    }
+    .custom-shadow{
+        box-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px, rgba(0, 0, 0, 0.3) 0px 7px 13px -3px, rgba(0, 0, 0, 0.2) 0px -3px 0px inset;
+    }
+}
+
+@layer components {
+    /* Shared base styles for all gradient buttons */
+    .gradient-shared{
+        background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+        box-shadow: 0 6px 20px rgba(249, 115, 22, 0.4), inset 0 -2px 4px rgba(0, 0, 0, 0.2);
+    }
+    .btn-gradient-shared {
+        @apply relative font-semibold text-white rounded-lg cursor-pointer;
+        @apply transition-all active:scale-95;
+        @apply focus:outline-none focus:ring-4 focus:ring-yellow-300;
+        @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
+        background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+        box-shadow: 0 6px 20px rgba(249, 115, 22, 0.4), inset 0 -2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    /* CTA Button - Desktop only with scale hover effect */
+    .btn-cta {
+        @apply hidden md:block px-6 py-2.5;
+        @apply duration-300 hover:scale-105;
+    }
+
+    /* More Button - Always visible with gradient hover and shadow effects */
+    .btn-more {
+        @apply overflow-hidden shadow-lg;
+        @apply duration-200 hover:shadow-xl;
+    }
+
+    .btn-more:hover:not(:disabled) {
+        background: linear-gradient(135deg, #eab308 0%, #ea580c 100%);
+    }
+
+    /* Custom Scrollbar Styling */
+    .scrollbar-thin::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .scrollbar-thin::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 4px;
+    }
+
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+        background: #7dd3fc;
+        border-radius: 4px;
+        transition: background 0.2s;
+    }
+
+    .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+        background: #38bdf8;
+    }
+
+    /* Firefox */
+    .scrollbar-thin {
+        scrollbar-width: thin;
+        scrollbar-color: #7dd3fc #f1f5f9;
+    }
+
+    .custom-shadow-heavy {
+        box-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px,
+        rgba(0, 0, 0, 0.3) 0px 7px 13px -3px,
+        rgba(0, 0, 0, 0.2) 0px -3px 0px inset;
+    }
+
+}
