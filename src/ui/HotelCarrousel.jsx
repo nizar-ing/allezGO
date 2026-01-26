@@ -7,7 +7,7 @@ import { HiChevronLeft, HiChevronRight } from 'react-icons/hi2';
 function HotelCarousel({
                            items = [],
                            renderItem,
-                           accentColor = "bg-blue-500",
+                           accentColor = "bg-sky-700",
                            showArrows = true,
                            showIndicators = true,
                            autoPlay = false,
@@ -195,7 +195,7 @@ function HotelCarousel({
             aria-live={autoPlay ? "off" : "polite"}
         >
             {/* Carousel Track */}
-            <div className="relative w-full overflow-hidden px-1">
+            <div className="relative w-full overflow-hidden px-1 py-4">
                 <div
                     className="grid transition-transform duration-500 ease-out"
                     style={{

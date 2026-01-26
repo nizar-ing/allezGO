@@ -145,16 +145,16 @@ function HotelCard({ hotel, className = "" }) {
             className={`
         group bg-white rounded-xl sm:rounded-2xl overflow-hidden 
         border border-gray-200 hover:border-sky-300
-        shadow-md hover:shadow-xl lg:hover:shadow-2xl
+        custom-shadow-heavy lg:hover:shadow-2xl
         h-full flex flex-col
-        w-full max-w-[340px] sm:max-w-none mx-auto
+        w-full max-w-[360px] sm:max-w-none mx-auto
         transition-all duration-500 ease-out
         transform hover:-translate-y-2
         ${className}
       `}
         >
             {/* Image Section */}
-            <div className="relative h-48 sm:h-52 md:h-60 lg:h-64 overflow-hidden bg-gradient-to-br from-gray-100 to-sky-50">
+            <div className="relative h-48 sm:h-52 md:h-60 lg:h-72 overflow-hidden bg-gradient-to-br from-gray-100 to-sky-50">
                 <img
                     src={Image}
                     alt={Name}
@@ -218,7 +218,7 @@ function HotelCard({ hotel, className = "" }) {
             {/* Content Section */}
             <div className="flex-1 p-4 sm:p-5 lg:p-6 flex flex-col">
                 {/* Hotel Name */}
-                <h3 className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-gray-900 mb-3 group-hover:text-sky-600 transition-colors line-clamp-2 leading-tight">
+                <h3 className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-gray-600 mb-3 group-hover:text-sky-600 transition-colors line-clamp-2 leading-tight">
                     {Name}
                 </h3>
 
@@ -228,7 +228,7 @@ function HotelCard({ hotel, className = "" }) {
                         <MdLocationOn className="text-sky-600 w-4 h-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold text-gray-900 line-clamp-1">
+                        <p className="text-sm font-bold text-gray-700 line-clamp-1">
                             {City?.Name}, {City?.Country?.Name}
                         </p>
                         {Adress && (
@@ -238,13 +238,6 @@ function HotelCard({ hotel, className = "" }) {
                         )}
                     </div>
                 </div>
-
-                {/* Description */}
-                {cleanDescription && (
-                    <p className="text-xs sm:text-sm text-gray-600 mb-3 line-clamp-2 leading-relaxed hidden sm:block">
-                        {cleanDescription}
-                    </p>
-                )}
 
                 {/* Boarding - Enhanced */}
                 {primaryBoarding && (

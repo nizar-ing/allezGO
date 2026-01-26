@@ -116,7 +116,7 @@ function HotelShowcase({ cityId = null, className = "" }) {
                 </div>
 
                 {/* Category Sections */}
-                <div className="space-y-8 sm:space-y-10 md:space-y-12 lg:space-y-16">
+                <div className="space-y-6 sm:space-y-8 md:space-y-10">
                     {categories.map((category, idx) =>
                             category.hotels.length > 0 && (
                                 <CategorySection key={idx} {...category} />
@@ -137,7 +137,7 @@ function CategorySection({ title, subtitle, icon, iconBg, hotels, badgeColor, ac
                     <div className={`p-2.5 bg-gradient-to-br ${iconBg} rounded-xl shadow-lg flex-shrink-0`}>
                         {React.cloneElement(icon, { className: "text-white w-5 h-5" })}
                     </div>
-                    <h2 className="text-xl font-bold text-gray-700 truncate">
+                    <h2 className="text-xl font-bold text-gray-600 truncate">
                         {title}
                     </h2>
                 </div>
