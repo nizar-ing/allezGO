@@ -91,6 +91,35 @@ export const useHotels = (cityId = null, enabled = true) => {
     });
 };
 
+
+/**
+ * Fetch enhanced hotels list with full details using batch processing
+ * @param {number|null} cityId - Optional city ID
+ * @param {Object} options - Fetch options
+ * @param {number} options.batchSize - Hotels per batch (default: 5)
+ * @param {number} options.delayBetweenBatches - Delay between batches in ms (default: 100)
+ * @param {boolean} enabled - Whether to enable the query
+ */
+export const useHotelsEnhanced = (cityId = null, options = {}, enabled = true) => {
+    const { batchSize = 5, delayBetweenBatches = 100 } = options;
+
+    return useQuery({
+        queryKey: cityId
+            ? [...QUERY_KEYS.hotelsByCity(cityId), 'enhanced']
+            : [...QUERY_KEYS.hotels, 'enhanced'],
+        queryFn: () => ApiClient.listHotelEnhanced(cityId, {
+            batchSize,
+            delayBetweenBatches
+        }),
+        enabled: enabled,
+        staleTime: 1000 * 60 * 15, // 15 minutes - enhanced data is expensive
+        gcTime: 1000 * 60 * 60, // 1 hour
+        refetchOnWindowFocus: false, // Disable automatic refetch
+        refetchOnMount: false,
+        retry: 1, // Only retry once if it fails
+    });
+};
+
 /**
  * Fetch specific hotel details
  * @param {number} hotelId - Hotel ID
@@ -137,38 +166,6 @@ export const useHotelSearch = (searchParams, enabled = false) => {
         staleTime: 1000 * 60 * 2, // 2 minutes for search results
         gcTime: 1000 * 60 * 5, // 5 minutes
         retry: 1, // Only retry once for searches
-    });
-};
-
-// ==================== Mutations ====================
-
-/**
- * Mutation hook for hotel search (alternative to useHotelSearch)
- * Use this when you want manual control over when the search happens
- */
-export const useHotelSearchMutation = () => {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: (searchParams) => ApiClient.searchHotel(searchParams),
-        onSuccess: (data, variables) => {
-            // Check for API errors
-            if (data.errorMessage && data.errorMessage.Code) {
-                console.error('Search error:', data.errorMessage.Description);
-                return;
-            }
-
-            // Cache the successful search result
-            queryClient.setQueryData(QUERY_KEYS.hotelSearch(variables), data);
-
-            console.log('Search successful:', {
-                results: data.countResults,
-                searchId: data.searchId
-            });
-        },
-        onError: (error) => {
-            console.error('Search mutation failed:', error.message);
-        },
     });
 };
 

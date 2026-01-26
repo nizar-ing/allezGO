@@ -1,12 +1,12 @@
 import React from "react";
 import Carousel from "../ui/Carrousel.jsx";
-import {carouselImages, destinations, hotelOfferCards, testimonials} from "../data/data.js";
+import {carouselImages, destinations, testimonials} from "../data/data.js";
 import BookingHotels from "../ui/BookingHotels.jsx";
-import HotelGridCards from "../components/HotelGridCards.jsx";
 import TestimonialCarousel from "../components/TestimonialsCarousel.jsx";
 import OrganizedTrips from "../components/OrganizedTrips.jsx";
 import Gallery from "../ui/Gallery.jsx";
 import PartnerCarrousel from "../ui/PartnerCarrousel.jsx";
+import HotelShowcase from "../components/HotelShowcase.jsx";
 
 function HomePage() {
   return (
@@ -16,7 +16,7 @@ function HomePage() {
     >
       <Carousel images={carouselImages} />
       <BookingHotels />
-      <HotelGridCards hotels={hotelOfferCards} />
+      <HotelShowcase cityId={10} />
       <OrganizedTrips destinations={destinations} />
       <Gallery />
       <TestimonialCarousel testimonials={testimonials} />
