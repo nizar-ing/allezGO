@@ -100,23 +100,19 @@ function HotelShowcase({ cityId = null, className = "" }) {
     ];
 
     return (
-        <section className={`w-full py-6 sm:py-8 md:py-10 lg:py-12 xl:py-16 bg-gradient-to-b from-sky-50 via-white to-gray-50 ${className}`}>
+        <section className={`w-full py-2 md:py-6 lg:py-8 bg-gradient-to-b from-sky-50 via-white to-gray-50 ${className}`}>
             <div className="w-full mx-auto px-4 sm:px-6 md:px-8 lg:max-w-7xl 2xl:max-w-[1600px]">
                 {/* Main Header */}
                 <div className="text-center mb-6 sm:mb-8 md:mb-10 lg:mb-14">
-                    <div className="flex flex-col items-center justify-center gap-3 sm:gap-4 mb-4 sm:mb-5">
-                        <div className="p-3 sm:p-3.5 md:p-4 bg-gradient-to-br from-sky-500 to-blue-600 rounded-xl sm:rounded-2xl shadow-lg transition-transform duration-300 hover:scale-105">
+                    <div className="flex flex-col lg:flex-row items-center justify-center gap-3 sm:gap-4 mb-4 sm:mb-5">
+                        <div className="hidden md:block p-3 sm:p-3.5 md:p-4 bg-gradient-to-br from-sky-500 to-sky-700 rounded-xl sm:rounded-2xl shadow-lg transition-transform duration-300 hover:scale-105">
                             <FaHotel className="text-white w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 lg:w-9 lg:h-9" />
                         </div>
 
-                        <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-700 bg-clip-text text-transparent leading-tight">
+                        <h1 className="hidden md:block text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold bg-gradient-to-r from-sky-600 via-sky-700 to-indigo-800 bg-clip-text text-transparent leading-tight">
                             Nos Collections d'Hôtels
                         </h1>
                     </div>
-
-                    <p className="text-gray-600 text-sm sm:text-base md:text-lg lg:text-xl max-w-3xl mx-auto">
-                        Découvrez notre sélection soigneusement choisie
-                    </p>
                 </div>
 
                 {/* Category Sections */}
@@ -141,7 +137,7 @@ function CategorySection({ title, subtitle, icon, iconBg, hotels, badgeColor, ac
                     <div className={`p-2.5 bg-gradient-to-br ${iconBg} rounded-xl shadow-lg flex-shrink-0`}>
                         {React.cloneElement(icon, { className: "text-white w-5 h-5" })}
                     </div>
-                    <h2 className="text-xl font-bold text-gray-900 truncate">
+                    <h2 className="text-xl font-bold text-gray-700 truncate">
                         {title}
                     </h2>
                 </div>
