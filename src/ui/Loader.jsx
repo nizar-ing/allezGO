@@ -10,10 +10,10 @@ function Loader({ message = "Chargement en cours...", className = "", fullHeight
                 {/* Dual Ring Spinner */}
                 <div className="relative w-16 h-16 sm:w-20 sm:h-20">
                     {/* Outer ring */}
-                    <div className="absolute inset-0 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin"></div>
+                    <div className="absolute inset-0 border-4 border-gray-200 border-t-sky-800 rounded-full animate-spin"></div>
 
                     {/* Inner ring */}
-                    <div className="absolute inset-2 border-4 border-gray-100 border-t-indigo-500 rounded-full animate-spin-reverse"></div>
+                    <div className="absolute inset-2 border-4 border-gray-100 border-t-sky-700 rounded-full animate-spin-reverse"></div>
                 </div>
 
                 {/* Loading Text */}

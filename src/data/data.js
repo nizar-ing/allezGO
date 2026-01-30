@@ -1,5 +1,9 @@
 const carouselImages = [
     {
+        url: "/videos/banner.mp4",
+        alt: "Station balnéaire de luxe avec palmiers et eau cristalline",
+    },
+    {
         url: "/images/slide8.webp",
         alt: "Station balnéaire de luxe avec palmiers et eau cristalline",
     },
@@ -303,144 +307,144 @@ const hotelOfferCards = [
         badges: [{type: "luxury", label: "Luxe"}],
         metadata: {locale: "fr-FR"},
     },
-    //
-    // {
-    //     id: "hotel-sabri-annaba",
-    //     type: "hotel-offer",
-    //     hotel: {
-    //         name: "Hôtel Sabri",
-    //         rating: 4,
-    //         location: {
-    //             city: "Annaba",
-    //             country: "Algeria",
-    //             display: "Annaba - Algérie",
-    //         },
-    //     },
-    //     image: {
-    //         src: "/images/hotels/Hotel-sabri-annaba.webp",
-    //         alt: "Hôtel Sabri Annaba",
-    //         aspectRatio: "16:9",
-    //     },
-    //     offer: {
-    //         boardType: "Half Board",
-    //         boardTypeLabel: "Demi pension",
-    //         price: {
-    //             amount: 8700,
-    //             currency: "DZD",
-    //             formatted: "8 700 DZD",
-    //             unit: "per night",
-    //             per: "person",
-    //         },
-    //         childPolicy: {
-    //             description: "Enfant - 5 ans Gratuit",
-    //             maxAge: 5,
-    //             free: true,
-    //         },
-    //     },
-    //     cta: {
-    //         label: "Voir l’offre",
-    //         action: "VIEW_OFFER",
-    //         url: "/offers/hotel-sabri-annaba",
-    //     },
-    //     badges: [{type: "sea", label: "Vue Mer"}],
-    //     metadata: {locale: "fr-FR"},
-    // },
-    //
-    // {
-    //     id: "le-soleil-bella-vista-resort-toboggan",
-    //     type: "hotel-offer",
-    //     hotel: {
-    //         name: "Le Soleil Bella Vista Resort",
-    //         rating: 4,
-    //         location: {
-    //             city: "Monastir",
-    //             country: "Tunisia",
-    //             display: "Monastir - Tunisie",
-    //         },
-    //     },
-    //     image: {
-    //         src: "/images/hotels/Le-Soleil-Bella-Vista-Resort-Toboggan.webp",
-    //         alt: "Le Soleil Bella Vista Resort",
-    //         aspectRatio: "16:9",
-    //     },
-    //     offer: {
-    //         boardType: "All Inclusive",
-    //         boardTypeLabel: "Tout compris",
-    //         price: {
-    //             amount: 8600,
-    //             currency: "DZD",
-    //             formatted: "8 600 DZD",
-    //             unit: "per night",
-    //             per: "person",
-    //         },
-    //         childPolicy: {
-    //             description: "Enfant Gratuit",
-    //             maxAge: 10,
-    //             free: true,
-    //         },
-    //     },
-    //     cta: {
-    //         label: "Voir l’offre",
-    //         action: "VIEW_OFFER",
-    //         url: "/offers/le-soleil-bella-vista-resort-toboggan",
-    //     },
-    //     badges: [{type: "aqua", label: "Toboggans"}],
-    //     metadata: {locale: "fr-FR"},
-    // },
-    //
-    // {
-    //     id: "regency-hammamet-hotel-piscine",
-    //     type: "hotel-offer",
-    //     hotel: {
-    //         name: "Regency Hammamet",
-    //         rating: 4,
-    //         location: {
-    //             city: "Hammamet",
-    //             country: "Tunisia",
-    //             display: "Hammamet - Tunisie",
-    //         },
-    //     },
-    //     image: {
-    //         src: "/images/hotels/Regency-Hammamet-Hotel-piscine.webp",
-    //         alt: "Regency Hammamet Hotel",
-    //         aspectRatio: "16:9",
-    //     },
-    //     offer: {
-    //         boardType: "Half Board",
-    //         boardTypeLabel: "Demi pension",
-    //         price: {
-    //             amount: 9100,
-    //             currency: "DZD",
-    //             formatted: "9 100 DZD",
-    //             unit: "per night",
-    //             per: "person",
-    //         },
-    //         childPolicy: {
-    //             description: "Enfant - 6 ans Gratuit",
-    //             maxAge: 6,
-    //             free: true,
-    //         },
-    //     },
-    //     cta: {
-    //         label: "Voir l’offre",
-    //         action: "VIEW_OFFER",
-    //         url: "/offers/regency-hammamet-hotel-piscine",
-    //     },
-    //     badges: [{type: "pool", label: "Piscine"}],
-    //     metadata: {locale: "fr-FR"},
-    // },
+
+    {
+        id: "hotel-sabri-annaba",
+        type: "hotel-offer",
+        hotel: {
+            name: "Hôtel Sabri",
+            rating: 4,
+            location: {
+                city: "Annaba",
+                country: "Algeria",
+                display: "Annaba - Algérie",
+            },
+        },
+        image: {
+            src: "/images/hotels/Hotel-sabri-annaba.webp",
+            alt: "Hôtel Sabri Annaba",
+            aspectRatio: "16:9",
+        },
+        offer: {
+            boardType: "Half Board",
+            boardTypeLabel: "Demi pension",
+            price: {
+                amount: 8700,
+                currency: "DZD",
+                formatted: "8 700 DZD",
+                unit: "per night",
+                per: "person",
+            },
+            childPolicy: {
+                description: "Enfant - 5 ans Gratuit",
+                maxAge: 5,
+                free: true,
+            },
+        },
+        cta: {
+            label: "Voir l’offre",
+            action: "VIEW_OFFER",
+            url: "/offers/hotel-sabri-annaba",
+        },
+        badges: [{type: "sea", label: "Vue Mer"}],
+        metadata: {locale: "fr-FR"},
+    },
+
+    {
+        id: "le-soleil-bella-vista-resort-toboggan",
+        type: "hotel-offer",
+        hotel: {
+            name: "Le Soleil Bella Vista Resort",
+            rating: 4,
+            location: {
+                city: "Monastir",
+                country: "Tunisia",
+                display: "Monastir - Tunisie",
+            },
+        },
+        image: {
+            src: "/images/hotels/Le-Soleil-Bella-Vista-Resort-Toboggan.webp",
+            alt: "Le Soleil Bella Vista Resort",
+            aspectRatio: "16:9",
+        },
+        offer: {
+            boardType: "All Inclusive",
+            boardTypeLabel: "Tout compris",
+            price: {
+                amount: 8600,
+                currency: "DZD",
+                formatted: "8 600 DZD",
+                unit: "per night",
+                per: "person",
+            },
+            childPolicy: {
+                description: "Enfant Gratuit",
+                maxAge: 10,
+                free: true,
+            },
+        },
+        cta: {
+            label: "Voir l’offre",
+            action: "VIEW_OFFER",
+            url: "/offers/le-soleil-bella-vista-resort-toboggan",
+        },
+        badges: [{type: "aqua", label: "Toboggans"}],
+        metadata: {locale: "fr-FR"},
+    },
+
+    {
+        id: "regency-hammamet-hotel-piscine",
+        type: "hotel-offer",
+        hotel: {
+            name: "Regency Hammamet",
+            rating: 4,
+            location: {
+                city: "Hammamet",
+                country: "Tunisia",
+                display: "Hammamet - Tunisie",
+            },
+        },
+        image: {
+            src: "/images/hotels/Regency-Hammamet-Hotel-piscine.webp",
+            alt: "Regency Hammamet Hotel",
+            aspectRatio: "16:9",
+        },
+        offer: {
+            boardType: "Half Board",
+            boardTypeLabel: "Demi pension",
+            price: {
+                amount: 9100,
+                currency: "DZD",
+                formatted: "9 100 DZD",
+                unit: "per night",
+                per: "person",
+            },
+            childPolicy: {
+                description: "Enfant - 6 ans Gratuit",
+                maxAge: 6,
+                free: true,
+            },
+        },
+        cta: {
+            label: "Voir l’offre",
+            action: "VIEW_OFFER",
+            url: "/offers/regency-hammamet-hotel-piscine",
+        },
+        badges: [{type: "pool", label: "Piscine"}],
+        metadata: {locale: "fr-FR"},
+    },
 ];
 
 const testimonials = [
     {
         imageUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop",
-        name: "Sarah Johnson",
+        name: "Emily Rodriguez",
         citation: "Travailler avec cette équipe a été une expérience fantastique. Ils ont livré à temps et ont dépassé nos attentes."
     },
     {
-        imageUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop",
-        name: "Michael Chen",
-        citation: "Professionnels, fiables et très compétents. Je les recommanderais sans hésitation à n'importe qui."
+        imageUrl: "/images/nizar-rond.png",
+        name: "نزار اللاهي",
+        citation: "صراحةً كل الشكر للاخ عماد و لولاد لمعاه  . خدمة خمس نجوم لحقيقة ... نتمنالكم كل التوفيق والنجاح."
     },
     {
         imageUrl: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop",

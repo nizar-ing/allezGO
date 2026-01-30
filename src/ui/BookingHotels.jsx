@@ -4,13 +4,16 @@ import { BsCalendar3, BsSearch } from "react-icons/bs";
 import { HiUsers } from "react-icons/hi";
 import { IoMdClose } from "react-icons/io";
 import { IoAddOutline, IoCheckmark, IoTrashOutline } from "react-icons/io5";
+import { FaHotel } from "react-icons/fa";
 import Button from "./Button.jsx";
-import { useCities } from "../custom-hooks/useHotelQueries";
+import { useCities, useHotels } from "../custom-hooks/useHotelQueries";
 import useDebounce from "../custom-hooks/useDebounce";
 
 function BookingHotels() {
     const [location, setLocation] = useState("");
     const [selectedCity, setSelectedCity] = useState(null);
+    const [selectedHotel, setSelectedHotel] = useState(null);
+    const [selectionType, setSelectionType] = useState(null);
     const [showCityDropdown, setShowCityDropdown] = useState(false);
     const [highlightedIndex, setHighlightedIndex] = useState(-1);
     const [showDatePicker, setShowDatePicker] = useState(false);
@@ -26,19 +29,26 @@ function BookingHotels() {
     const cityDropdownRef = useRef(null);
     const locationInputRef = useRef(null);
 
-    // Fetch cities from API using React Query
+    // Fetch cities and hotels from API using React Query
     const { data: cities, isLoading: citiesLoading, error: citiesError } = useCities();
-    console.log(cities);
+    const { data: hotels, isLoading: hotelsLoading, error: hotelsError } = useHotels();
+
+    console.log("Cities:", cities);
+    console.log("Hotels:", hotels);
+
     // Debounce search input for better performance
     const debouncedSearch = useDebounce(location, 300);
 
-    // Intelligent filtering of cities based on input
-    const filteredCities = React.useMemo(() => {
-        if (!cities || !debouncedSearch) return cities || [];
+    // Combined filtering of cities AND hotels
+    const filteredResults = React.useMemo(() => {
+        if (!debouncedSearch) {
+            return { cities: cities || [], hotels: [] };
+        }
 
         const searchLower = debouncedSearch.toLowerCase().trim();
 
-        return cities.filter((city) => {
+        // Filter cities (max 5)
+        const matchedCities = (cities || []).filter((city) => {
             const cityName = city.Name?.toLowerCase() || '';
             const countryName = city.Country?.Name?.toLowerCase() || '';
             const regionName = city.Region?.toLowerCase() || '';
@@ -46,8 +56,38 @@ function BookingHotels() {
             return cityName.includes(searchLower) ||
                 countryName.includes(searchLower) ||
                 regionName.includes(searchLower);
-        }).slice(0, 10);
-    }, [cities, debouncedSearch]);
+        }).slice(0, 5);
+
+        // Filter hotels (max 5)
+        const matchedHotels = (hotels || []).filter((hotel) => {
+            const hotelName = hotel.Name?.toLowerCase() || '';
+            const cityName = hotel.City?.Name?.toLowerCase() || '';
+            const countryName = hotel.City?.Country?.Name?.toLowerCase() || '';
+
+            return hotelName.includes(searchLower) ||
+                cityName.includes(searchLower) ||
+                countryName.includes(searchLower);
+        }).slice(0, 5);
+
+        return { cities: matchedCities, hotels: matchedHotels };
+    }, [cities, hotels, debouncedSearch]);
+
+    // Combine cities and hotels for dropdown (cities first, then hotels)
+    const combinedResults = React.useMemo(() => {
+        const results = [];
+
+        // Add cities first
+        filteredResults.cities.forEach(city => {
+            results.push({ type: 'city', data: city });
+        });
+
+        // Add hotels after
+        filteredResults.hotels.forEach(hotel => {
+            results.push({ type: 'hotel', data: hotel });
+        });
+
+        return results;
+    }, [filteredResults]);
 
     // Close dropdowns when clicking outside
     useEffect(() => {
@@ -83,6 +123,8 @@ function BookingHotels() {
         const value = e.target.value;
         setLocation(value);
         setSelectedCity(null);
+        setSelectedHotel(null);
+        setSelectionType(null);
         setShowCityDropdown(true);
         setHighlightedIndex(-1);
     };
@@ -94,6 +136,21 @@ function BookingHotels() {
 
         setLocation(`${cityName}${countryName ? `, ${countryName}` : ''}`);
         setSelectedCity(city);
+        setSelectedHotel(null);
+        setSelectionType('city');
+        setShowCityDropdown(false);
+        setHighlightedIndex(-1);
+    };
+
+    // Handle hotel selection
+    const handleHotelSelect = (hotel) => {
+        const hotelName = hotel.Name || '';
+        const cityName = hotel.City?.Name || '';
+
+        setLocation(`${hotelName}${cityName ? `, ${cityName}` : ''}`);
+        setSelectedHotel(hotel);
+        setSelectedCity(hotel.City || null);
+        setSelectionType('hotel');
         setShowCityDropdown(false);
         setHighlightedIndex(-1);
     };
@@ -102,6 +159,8 @@ function BookingHotels() {
     const handleClearLocation = () => {
         setLocation("");
         setSelectedCity(null);
+        setSelectedHotel(null);
+        setSelectionType(null);
         setShowCityDropdown(false);
         setHighlightedIndex(-1);
         locationInputRef.current?.focus();
@@ -109,13 +168,13 @@ function BookingHotels() {
 
     // Keyboard navigation for dropdown
     const handleLocationKeyDown = (e) => {
-        if (!showCityDropdown || filteredCities.length === 0) return;
+        if (!showCityDropdown || combinedResults.length === 0) return;
 
         switch (e.key) {
             case 'ArrowDown':
                 e.preventDefault();
                 setHighlightedIndex((prev) =>
-                    prev < filteredCities.length - 1 ? prev + 1 : prev
+                    prev < combinedResults.length - 1 ? prev + 1 : prev
                 );
                 break;
             case 'ArrowUp':
@@ -124,8 +183,13 @@ function BookingHotels() {
                 break;
             case 'Enter':
                 e.preventDefault();
-                if (highlightedIndex >= 0 && highlightedIndex < filteredCities.length) {
-                    handleCitySelect(filteredCities[highlightedIndex]);
+                if (highlightedIndex >= 0 && highlightedIndex < combinedResults.length) {
+                    const selected = combinedResults[highlightedIndex];
+                    if (selected.type === 'city') {
+                        handleCitySelect(selected.data);
+                    } else {
+                        handleHotelSelect(selected.data);
+                    }
                 }
                 break;
             case 'Escape':
@@ -231,15 +295,22 @@ function BookingHotels() {
     const handleSearch = () => {
         console.log("Search:", {
             location,
+            selectionType,
             selectedCity,
+            selectedHotel,
             cityId: selectedCity?.Id,
             cityName: selectedCity?.Name,
+            hotelId: selectedHotel?.Id,
+            hotelName: selectedHotel?.Name,
             countryId: selectedCity?.Country?.Id,
             countryName: selectedCity?.Country?.Name,
             range,
             rooms
         });
+
         // TODO: Implement search logic with API
+        // If selectionType === 'city' → search all hotels in that city
+        // If selectionType === 'hotel' → search only that specific hotel
     };
 
     // Calendar functions
@@ -347,14 +418,14 @@ function BookingHotels() {
         <div className="w-full max-w-7xl mx-auto -mt-16 z-10 px-4 py-8">
             <div className="bg-white rounded-xl custom-shadow-heavy p-4 md:p-6 bg-linear-to-r from-slate-200 via-white to-slate-200">
                 <div className="flex flex-wrap gap-3 items-center">
-                    {/* Location Input with Autocomplete */}
+                    {/* Location Input with Autocomplete (Cities + Hotels) */}
                     <div className="flex-1 min-w-[220px] relative" ref={cityDropdownRef}>
                         <div className="flex items-center gap-2 p-3 border border-gray-300 rounded-lg hover:border-blue-500 transition-colors bg-white">
                             <MdLocationOn className="text-sky-600" size={22} />
                             <input
                                 ref={locationInputRef}
                                 type="text"
-                                placeholder="Où allez-vous ?"
+                                placeholder="Ville ou hôtel..."
                                 value={location}
                                 onChange={handleLocationChange}
                                 onKeyDown={handleLocationKeyDown}
@@ -372,70 +443,229 @@ function BookingHotels() {
                             )}
                         </div>
 
-                        {/* City Dropdown */}
+                        {/* City & Hotel Dropdown - Enhanced Modern Design */}
                         {showCityDropdown && location && (
-                            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-2xl z-50 border border-gray-200 max-h-80 overflow-y-auto">
-                                {citiesLoading && (
-                                    <div className="p-4 text-center text-gray-500 text-sm">
-                                        <div className="flex items-center justify-center gap-2">
-                                            <div className="w-4 h-4 border-2 border-sky-600 border-t-transparent rounded-full animate-spin"></div>
-                                            Chargement des villes...
+                            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl z-50 border border-gray-100 max-h-[400px] overflow-hidden animate-slideDown">
+                                {/* Loading State */}
+                                {(citiesLoading || hotelsLoading) && (
+                                    <div className="p-6 text-center">
+                                        <div className="flex flex-col items-center justify-center gap-3">
+                                            <div className="relative w-10 h-10">
+                                                <div className="absolute inset-0 border-4 border-sky-100 rounded-full"></div>
+                                                <div className="absolute inset-0 border-4 border-sky-600 border-t-transparent rounded-full animate-spin"></div>
+                                            </div>
+                                            <p className="text-sm text-gray-600 font-medium">
+                                                Recherche...
+                                            </p>
                                         </div>
                                     </div>
                                 )}
 
-                                {citiesError && (
-                                    <div className="p-4 text-center text-red-500 text-sm">
-                                        Erreur lors du chargement des villes
+                                {/* Error State */}
+                                {(citiesError || hotelsError) && (
+                                    <div className="p-6 text-center">
+                                        <div className="flex flex-col items-center justify-center gap-3">
+                                            <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center">
+                                                <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-semibold text-red-600 mb-1">
+                                                    Erreur de chargement
+                                                </p>
+                                                <p className="text-xs text-gray-500">
+                                                    Impossible de charger les données
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
 
-                                {!citiesLoading && !citiesError && filteredCities.length === 0 && (
-                                    <div className="p-4 text-center text-gray-500 text-sm">
-                                        Aucune ville trouvée
+                                {/* Empty State */}
+                                {!citiesLoading && !hotelsLoading && !citiesError && !hotelsError && combinedResults.length === 0 && (
+                                    <div className="p-6 text-center">
+                                        <div className="flex flex-col items-center justify-center gap-3">
+                                            <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center">
+                                                <MdLocationOn className="text-gray-400" size={24} />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-semibold text-gray-700 mb-1">
+                                                    Aucun résultat trouvé
+                                                </p>
+                                                <p className="text-xs text-gray-500">
+                                                    Essayez avec un autre nom
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
 
-                                {!citiesLoading && !citiesError && filteredCities.length > 0 && (
-                                    <ul className="py-2">
-                                        {filteredCities.map((city, index) => {
-                                            const cityName = city.Name || '';
-                                            const countryName = city.Country?.Name || '';
-                                            const regionName = city.Region || '';
-                                            const cityId = city.Id;
+                                {/* Combined Results List */}
+                                {!citiesLoading && !hotelsLoading && !citiesError && !hotelsError && combinedResults.length > 0 && (
+                                    <div className="overflow-y-auto max-h-[400px] custom-scrollbar">
+                                        {/* Results count */}
+                                        <div className="sticky top-0 bg-gradient-to-b from-gray-50 to-transparent px-4 py-2 border-b border-gray-100 z-10">
+                                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                                                {filteredResults.cities.length} {filteredResults.cities.length === 1 ? 'ville' : 'villes'} · {filteredResults.hotels.length} {filteredResults.hotels.length === 1 ? 'hôtel' : 'hôtels'}
+                                            </p>
+                                        </div>
 
-                                            return (
-                                                <li
-                                                    key={cityId}
-                                                    data-index={index}
-                                                    onClick={() => handleCitySelect(city)}
-                                                    className={`
-                                                        px-4 py-3 cursor-pointer transition-colors text-sm
-                                                        ${highlightedIndex === index
-                                                        ? 'bg-sky-50 text-sky-700'
-                                                        : 'text-gray-700 hover:bg-gray-50'
-                                                    }
-                                                    `}
-                                                >
-                                                    <div className="flex items-center gap-2">
-                                                        <MdLocationOn
-                                                            className={highlightedIndex === index ? 'text-sky-600' : 'text-gray-400'}
-                                                            size={18}
-                                                        />
-                                                        <div>
-                                                            <div className="font-medium">{cityName}</div>
-                                                            {regionName && (
-                                                                <div className="text-xs text-gray-500">{regionName}</div>
-                                                            )}
-                                                            {countryName && (
-                                                                <div className="text-xs text-gray-400">{countryName}</div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </li>
-                                            );
-                                        })}
-                                    </ul>
+                                        <ul className="py-1">
+                                            {combinedResults.map((result, index) => {
+                                                const isCity = result.type === 'city';
+                                                const isHighlighted = highlightedIndex === index;
+
+                                                if (isCity) {
+                                                    // CITY ITEM
+                                                    const city = result.data;
+                                                    const cityName = city.Name || '';
+                                                    const countryName = city.Country?.Name || '';
+                                                    const regionName = city.Region || '';
+
+                                                    return (
+                                                        <li
+                                                            key={`city-${city.Id}`}
+                                                            data-index={index}
+                                                            onClick={() => handleCitySelect(city)}
+                                                            className={`
+                                                                px-4 py-3 cursor-pointer transition-all duration-200 
+                                                                border-l-4 mx-2 rounded-lg my-1
+                                                                ${isHighlighted
+                                                                ? 'bg-gradient-to-r from-sky-50 to-blue-50 border-sky-500 shadow-sm scale-[1.02]'
+                                                                : 'border-transparent hover:bg-gray-50 hover:border-gray-300'
+                                                            }
+                                                            `}
+                                                        >
+                                                            <div className="flex items-start gap-3">
+                                                                <div className={`
+                                                                    mt-0.5 p-2 rounded-lg transition-all duration-200
+                                                                    ${isHighlighted ? 'bg-sky-100 scale-110' : 'bg-gray-100'}
+                                                                `}>
+                                                                    <MdLocationOn
+                                                                        className={`transition-colors duration-200 ${
+                                                                            isHighlighted ? 'text-sky-600' : 'text-gray-400'
+                                                                        }`}
+                                                                        size={20}
+                                                                    />
+                                                                </div>
+
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-center gap-2 mb-0.5">
+                                                                        <div className={`
+                                                                            font-semibold text-sm transition-colors duration-200
+                                                                            ${isHighlighted ? 'text-sky-700' : 'text-gray-800'}
+                                                                        `}>
+                                                                            {cityName}
+                                                                        </div>
+                                                                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                                                                            Ville
+                                                                        </span>
+                                                                    </div>
+
+                                                                    {regionName && (
+                                                                        <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-0.5">
+                                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                            </svg>
+                                                                            <span className="truncate">{regionName}</span>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {countryName && (
+                                                                        <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+                                                                            </svg>
+                                                                            <span className="truncate">{countryName}</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+
+                                                                {isHighlighted && (
+                                                                    <div className="mt-1 text-sky-600 animate-pulse">
+                                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                                        </svg>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </li>
+                                                    );
+                                                } else {
+                                                    // HOTEL ITEM
+                                                    const hotel = result.data;
+                                                    const hotelName = hotel.Name || '';
+                                                    const cityName = hotel.City?.Name || '';
+                                                    const category = hotel.Category?.Star ? `${hotel.Category.Star} étoiles` : '';
+
+                                                    return (
+                                                        <li
+                                                            key={`hotel-${hotel.Id}`}
+                                                            data-index={index}
+                                                            onClick={() => handleHotelSelect(hotel)}
+                                                            className={`
+                                                                px-4 py-3 cursor-pointer transition-all duration-200 
+                                                                border-l-4 mx-2 rounded-lg my-1
+                                                                ${isHighlighted
+                                                                ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-500 shadow-sm scale-[1.02]'
+                                                                : 'border-transparent hover:bg-gray-50 hover:border-gray-300'
+                                                            }
+                                                            `}
+                                                        >
+                                                            <div className="flex items-start gap-3">
+                                                                <div className={`
+                                                                    mt-0.5 p-2 rounded-lg transition-all duration-200
+                                                                    ${isHighlighted ? 'bg-amber-100 scale-110' : 'bg-gray-100'}
+                                                                `}>
+                                                                    <FaHotel
+                                                                        className={`transition-colors duration-200 ${
+                                                                            isHighlighted ? 'text-amber-600' : 'text-gray-400'
+                                                                        }`}
+                                                                        size={18}
+                                                                    />
+                                                                </div>
+
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-center gap-2 mb-0.5">
+                                                                        <div className={`
+                                                                            font-semibold text-sm transition-colors duration-200
+                                                                            ${isHighlighted ? 'text-amber-700' : 'text-gray-800'}
+                                                                        `}>
+                                                                            {hotelName}
+                                                                        </div>
+                                                                        <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
+                                                                            Hôtel
+                                                                        </span>
+                                                                    </div>
+
+                                                                    {category && (
+                                                                        <div className="flex items-center gap-1.5 text-xs text-amber-600 mb-0.5">
+                                                                            <span>⭐ {category}</span>
+                                                                        </div>
+                                                                    )}
+
+                                                                    <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                                                        <MdLocationOn size={12} />
+                                                                        <span className="truncate">{cityName}</span>
+                                                                    </div>
+                                                                </div>
+
+                                                                {isHighlighted && (
+                                                                    <div className="mt-1 text-amber-600 animate-pulse">
+                                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                                        </svg>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </li>
+                                                    );
+                                                }
+                                            })}
+                                        </ul>
+                                    </div>
                                 )}
                             </div>
                         )}
@@ -622,31 +852,29 @@ function BookingHotels() {
 
                                                 {/* Children Age Selects */}
                                                 {room.children.length > 0 && (
-                                                    <div className="space-y-2 pl-2">
+                                                    <div className="space-y-2">
                                                         {room.children.map((child, childIndex) => (
-                                                            <div key={child.id} className="flex items-center justify-between">
-                                                                <span className="text-gray-600 text-xs">
-                                                                    Enfant {childIndex + 1} âge:
+                                                            <div key={child.id} className="flex items-center gap-2">
+                                                                <span className="text-xs text-gray-600 w-20">
+                                                                    Enfant {childIndex + 1}
                                                                 </span>
-                                                                <div className="flex items-center gap-2">
-                                                                    <select
-                                                                        value={child.age}
-                                                                        onChange={(e) => updateChildAge(room.id, child.id, e.target.value)}
-                                                                        className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-800 focus:outline-none focus:border-sky-500 bg-white"
-                                                                    >
-                                                                        {[...Array(11)].map((_, i) => (
-                                                                            <option key={i + 1} value={i + 1}>
-                                                                                {i + 1} an{i + 1 > 1 ? "s" : ""}
-                                                                            </option>
-                                                                        ))}
-                                                                    </select>
-                                                                    <button
-                                                                        onClick={() => removeChild(room.id, child.id)}
-                                                                        className="text-red-500 hover:text-red-600 p-1"
-                                                                    >
-                                                                        <IoMdClose size={16} />
-                                                                    </button>
-                                                                </div>
+                                                                <select
+                                                                    value={child.age}
+                                                                    onChange={(e) => updateChildAge(room.id, child.id, e.target.value)}
+                                                                    className="flex-1 px-3 py-2 bg-slate-100 text-zinc-800 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-sky-500"
+                                                                >
+                                                                    {[...Array(11)].map((_, i) => (
+                                                                        <option className="text-zinc-800" key={i + 1} value={i + 1}>
+                                                                            {i + 1} an{i + 1 > 1 ? 's' : ''}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                                <button
+                                                                    onClick={() => removeChild(room.id, child.id)}
+                                                                    className="text-red-500 hover:text-red-700 p-1"
+                                                                >
+                                                                    <IoMdClose size={20} />
+                                                                </button>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -656,38 +884,34 @@ function BookingHotels() {
                                     ))}
 
                                     {/* Add Room Button */}
-                                    <Button
+                                    <button
                                         onClick={addRoom}
-                                        variant="outline"
-                                        size="sm"
-                                        className="w-full mb-4"
+                                        className="w-full flex items-center justify-center gap-2 py-3 px-4 border-2 border-dashed border-sky-300 rounded-lg text-sky-600 hover:bg-sky-50 hover:border-sky-500 transition-colors font-medium"
                                     >
-                                        <span className="flex justify-center items-center gap-2">
-                                           <IoAddOutline size={20} />
-                                            Ajouter chambre
-                                        </span>
-                                    </Button>
+                                        <IoAddOutline size={20} />
+                                        Ajouter une chambre
+                                    </button>
 
-                                    {/* OK Button */}
-                                    <Button
+                                    {/* Done Button */}
+                                    <button
                                         onClick={() => setShowGuestPicker(false)}
-                                        variant="primary"
-                                        className="w-full"
+                                        className="w-full mt-4 bg-sky-600 text-white py-3 rounded-lg hover:bg-sky-700 transition-colors font-semibold flex items-center justify-center gap-2"
                                     >
-                                        <span className="flex justify-center items-center gap-2">
-                                            <IoCheckmark size={20} />
-                                            Confirmer
-                                        </span>
-                                    </Button>
+                                        <IoCheckmark size={22} />
+                                        Terminé
+                                    </button>
                                 </div>
                             </div>
                         )}
                     </div>
 
                     {/* Search Button */}
-                    <Button onClick={handleSearch} variant="primary" className="w-full lg:w-auto">
-                        <span className="flex items-center justify-center gap-2">
-                            <BsSearch size={18}/>
+                    <Button
+                        onClick={handleSearch}
+                        className="w-full lg:w-auto bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition-colors font-semibold"
+                    >
+                        <span className="flex justify-center items-center gap-2 px-4">
+                            <BsSearch size={20} />
                             Rechercher
                         </span>
                     </Button>

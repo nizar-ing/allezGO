@@ -168,7 +168,6 @@ export const useHotelSearch = (searchParams, enabled = false) => {
         retry: 1, // Only retry once for searches
     });
 };
-
 /**
  * Helper hook to get all filter data at once
  * Useful for loading all dropdown options on a search/filter page
@@ -204,6 +203,7 @@ export const useFilterData = () => {
             currencies.isError,
     };
 };
+
 
 /**
  * Helper hook to invalidate hotel-related queries

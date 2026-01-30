@@ -326,31 +326,6 @@ function HotelCard({ hotel, className = "" }) {
 
                 {/* Spacer */}
                 <div className="flex-1 min-h-[8px]" />
-
-                {/* Contact Actions */}
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                    {Phone && (
-                        <a
-                            href={`tel:${Phone}`}
-                            className="group/contact flex items-center justify-center gap-1.5 bg-gradient-to-br from-sky-50 to-blue-50 border-2 border-sky-200 hover:border-sky-300 rounded-lg px-3 py-2 hover:shadow-md transition-all duration-300"
-                        >
-                            <MdPhone className="text-sky-600 w-4 h-4 group-hover/contact:scale-110 transition-transform" />
-                            <span className="text-sm text-sky-800 font-bold">Appeler</span>
-                        </a>
-                    )}
-
-                    {Email && (
-                        <a
-                            href={`mailto:${Email}`}
-                            className="group/contact flex items-center justify-center gap-1.5 bg-gradient-to-br from-gray-50 to-slate-50 border-2 border-gray-200 hover:border-gray-300 rounded-lg px-3 py-2 hover:shadow-md transition-all duration-300"
-                            title={Email}
-                        >
-                            <MdEmail className="text-gray-600 w-4 h-4 group-hover/contact:scale-110 transition-transform" />
-                            <span className="text-sm text-gray-800 font-bold">Email</span>
-                        </a>
-                    )}
-                </div>
-
                 {/* Premium CTA Button */}
                 <Link
                     to={`/hotels/${Id}`}
@@ -358,7 +333,7 @@ function HotelCard({ hotel, className = "" }) {
                      rounded-xl overflow-hidden transition-all duration-300 py-3 px-4 text-sm shadow-lg hover:shadow-xl active:scale-95 focus:outline-none focus:ring-4 focus:ring-sky-300/50"
                 >
                     {/* Gradient Background */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-sky-500 via-sky-700 to-indigo-600 transition-all duration-300"></div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-sky-500 via-sky-700 to-sky-800 transition-all duration-300"></div>
 
                     {/* Shine Effect */}
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover/btn:translate-x-full transition-transform duration-1000"></div>
