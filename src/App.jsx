@@ -9,6 +9,7 @@ import OrganizedTrips from "./components/OrganizedTrips.jsx";
 import {destinations} from "./data/data.js";
 import HotelsPerCityPage from "./pages/HotelsPerCityPage.jsx";
 import SignInPage from "./pages/SignInPage.jsx";
+import SearchResultsPage from "./pages/SearchResultsPage.jsx";
 
 function ScrollToTop() {
     const location = useLocation();
@@ -30,6 +31,7 @@ function App() {
                     <Route path="/hotels/:hotelId" element={<HotelDetails />} />
                     <Route path="/voyages-organises" element={<OrganizedTrips destinations={destinations} />} />
                     <Route path="/trips/:id" element={<OrganizedTrip />} />
+                    <Route path="/search-results" element={<SearchResultsPage />} />
                     <Route path="/signin" element={<SignInPage />} />
                 </Route>
             </Routes>

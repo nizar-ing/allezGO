@@ -1,15 +1,19 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { MdLocationOn, MdClose } from "react-icons/md";
 import { BsCalendar3, BsSearch } from "react-icons/bs";
 import { HiUsers } from "react-icons/hi";
 import { IoMdClose } from "react-icons/io";
 import { IoAddOutline, IoCheckmark, IoTrashOutline } from "react-icons/io5";
 import { FaHotel } from "react-icons/fa";
+import toast from "react-hot-toast";
 import Button from "./Button.jsx";
 import { useCities, useHotels } from "../custom-hooks/useHotelQueries";
 import useDebounce from "../custom-hooks/useDebounce";
 
 function BookingHotels() {
+    const navigate = useNavigate();
+
     const [location, setLocation] = useState("");
     const [selectedCity, setSelectedCity] = useState(null);
     const [selectedHotel, setSelectedHotel] = useState(null);
@@ -33,8 +37,11 @@ function BookingHotels() {
     const { data: cities, isLoading: citiesLoading, error: citiesError } = useCities();
     const { data: hotels, isLoading: hotelsLoading, error: hotelsError } = useHotels();
 
-    console.log("Cities:", cities);
-    console.log("Hotels:", hotels);
+    // Development logging only
+    if (process.env.NODE_ENV === 'development') {
+        console.log("Cities:", cities);
+        console.log("Hotels:", hotels);
+    }
 
     // Debounce search input for better performance
     const debouncedSearch = useDebounce(location, 300);
@@ -292,25 +299,135 @@ function BookingHotels() {
         }
     };
 
+    // Validation helper functions
+    const validateSearch = () => {
+        // Validate location selection
+        if (!selectedCity && !selectedHotel) {
+            toast.error("Veuillez sélectionner une ville ou un hôtel", {
+                duration: 4000,
+                position: 'top-center',
+            });
+            return false;
+        }
+
+        // Validate dates
+        if (!range.from || !range.to) {
+            toast.error("Veuillez sélectionner les dates de séjour", {
+                duration: 4000,
+                position: 'top-center',
+            });
+            return false;
+        }
+
+        // Check if check-in is before check-out
+        if (range.from >= range.to) {
+            toast.error("La date de départ doit être après la date d'arrivée", {
+                duration: 4000,
+                position: 'top-center',
+            });
+            return false;
+        }
+
+        // Check if dates are in the past
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (range.from < today) {
+            toast.error("La date d'arrivée ne peut pas être dans le passé", {
+                duration: 4000,
+                position: 'top-center',
+            });
+            return false;
+        }
+
+        // Validate rooms
+        if (rooms.length === 0) {
+            toast.error("Veuillez configurer au moins une chambre", {
+                duration: 4000,
+                position: 'top-center',
+            });
+            return false;
+        }
+
+        return true;
+    };
+
+    const formatDateForAPI = (date) => {
+        if (!date) return '';
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    // Search handler
     const handleSearch = () => {
-        console.log("Search:", {
-            location,
-            selectionType,
-            selectedCity,
-            selectedHotel,
-            cityId: selectedCity?.Id,
-            cityName: selectedCity?.Name,
-            hotelId: selectedHotel?.Id,
-            hotelName: selectedHotel?.Name,
-            countryId: selectedCity?.Country?.Id,
-            countryName: selectedCity?.Country?.Name,
-            range,
-            rooms
+        // Validate inputs
+        if (!validateSearch()) {
+            return;
+        }
+
+        // Format dates for API (YYYY-MM-DD)
+        const checkInFormatted = formatDateForAPI(range.from);
+        const checkOutFormatted = formatDateForAPI(range.to);
+
+        // Build search params object
+        const searchParams = new URLSearchParams();
+
+        // Add selection type and location info
+        searchParams.append('selectionType', selectionType);
+
+        if (selectionType === 'city') {
+            searchParams.append('cityId', selectedCity.Id);
+            searchParams.append('cityName', selectedCity.Name);
+            if (selectedCity.Country?.Name) {
+                searchParams.append('countryName', selectedCity.Country.Name);
+            }
+        } else if (selectionType === 'hotel') {
+            searchParams.append('hotelId', selectedHotel.Id);
+            searchParams.append('hotelName', selectedHotel.Name);
+            if (selectedHotel.City?.Id) {
+                searchParams.append('cityId', selectedHotel.City.Id);
+            }
+            if (selectedHotel.City?.Name) {
+                searchParams.append('cityName', selectedHotel.City.Name);
+            }
+        }
+
+        // Add dates
+        searchParams.append('checkIn', checkInFormatted);
+        searchParams.append('checkOut', checkOutFormatted);
+
+        // Add rooms data as JSON string
+        const roomsData = rooms.map(room => ({
+            adults: room.adults,
+            children: room.children.map(child => child.age)
+        }));
+        searchParams.append('rooms', JSON.stringify(roomsData));
+
+        // Add number of nights for display
+        searchParams.append('nights', calculateNights());
+
+        // Development logging
+        if (process.env.NODE_ENV === 'development') {
+            console.log('🔍 Search Params:', {
+                selectionType,
+                cityId: selectedCity?.Id,
+                hotelId: selectedHotel?.Id,
+                checkIn: checkInFormatted,
+                checkOut: checkOutFormatted,
+                rooms: roomsData,
+                nights: calculateNights()
+            });
+        }
+
+        // Show loading toast
+        toast.loading("Recherche en cours...", {
+            id: 'search-loading',
+            duration: 2000,
         });
 
-        // TODO: Implement search logic with API
-        // If selectionType === 'city' → search all hotels in that city
-        // If selectionType === 'hotel' → search only that specific hotel
+        // Navigate to search results page
+        navigate(`/search-results?${searchParams.toString()}`);
     };
 
     // Calendar functions
