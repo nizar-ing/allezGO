@@ -1,22 +1,19 @@
-import React, { useState } from 'react';
+import  { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     MdEmail,
-    MdLock,
     MdVisibility,
     MdVisibilityOff,
     MdCheckCircle,
-    MdError,
-    MdPerson
+    MdError
 } from 'react-icons/md';
 import {
     FaGoogle,
     FaFacebook,
     FaTwitter,
-    FaUserCircle,
     FaLock
 } from 'react-icons/fa';
-import { HiSparkles, HiLockClosed } from 'react-icons/hi';
+import { HiLockClosed } from 'react-icons/hi';
 import { RiUserFill } from 'react-icons/ri';
 import toast from 'react-hot-toast';
 import './SignInPage.css'; // Import the CSS file

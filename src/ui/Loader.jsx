@@ -1,4 +1,3 @@
-import React from "react";
 
 /**
  * Loader Component - Flexible loading indicator

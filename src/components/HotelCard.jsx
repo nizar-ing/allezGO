@@ -1,5 +1,4 @@
-import React from "react";
-import { MdLocationOn, MdEmail, MdPhone, MdStar } from "react-icons/md";
+import { MdLocationOn,MdStar } from "react-icons/md";
 import { BsImages } from "react-icons/bs";
 import { AiOutlineEye } from "react-icons/ai";
 import { HiSparkles } from "react-icons/hi";
@@ -7,15 +6,13 @@ import {
     IoRestaurantOutline,
     IoWifiOutline,
     IoFitnessOutline,
-    IoCarSportOutline,
-    IoWaterOutline
+    IoCarSportOutline
 } from "react-icons/io5";
 import {
     FaSpa,
     FaSwimmingPool,
     FaConciergeBell,
     FaUmbrellaBeach,
-    FaChild,
     FaHeart,
     FaMountain,
     FaCity,

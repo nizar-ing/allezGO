@@ -1,4 +1,3 @@
-import React from "react";
 import Carousel from "../ui/Carrousel.jsx";
 import {carouselImages, testimonials} from "../data/data.js";
 import BookingHotels from "../ui/BookingHotels.jsx";

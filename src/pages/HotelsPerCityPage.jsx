@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
@@ -7,7 +7,6 @@ import {
     Grid3x3,
     List,
     ChevronDown,
-    Map as MapIcon,
     Search,
     Hotel,
     AlertCircle,
@@ -18,7 +17,10 @@ import {
     Users,
     RefreshCw,
 } from "lucide-react";
+import { IoAddOutline, IoTrashOutline } from "react-icons/io5";
 import toast from "react-hot-toast";
+import { DayPicker } from 'react-day-picker';
+import 'react-day-picker/style.css';
 import apiClient from "../services/ApiClient";
 import HotelsFiltering from "../components/HotelsFiltering.jsx";
 import HotelLightCard from "../components/HotelLightCard.jsx";
@@ -52,12 +54,30 @@ function HotelsPerCityPage() {
     const [cityInfo, setCityInfo] = useState(null);
     const [showDatePicker, setShowDatePicker] = useState(false);
 
-    // ✅ DEFAULT: 1 night, 1 adult, starting tomorrow
+    // ✅ Manual month control for calendar
+    const [currentMonth, setCurrentMonth] = useState(new Date());
+
+    // ✅ DEFAULT: 1 night, 2 adults, starting tomorrow
     const defaultDates = getDefaultDates();
+
+    // ✅ ACTUAL search params (used for API calls)
     const [searchParams, setSearchParams] = useState({
         checkIn: defaultDates.checkIn,
         checkOut: defaultDates.checkOut,
-        rooms: [{ adults: 1, children: [] }] // Changed to 1 adult by default
+        rooms: [{ adults: 2, children: [] }]
+    });
+
+    // ✅ NEW: TEMPORARY state for form inputs (not synced to API until "Actualiser les prix")
+    const [tempSearchParams, setTempSearchParams] = useState({
+        checkIn: defaultDates.checkIn,
+        checkOut: defaultDates.checkOut,
+        rooms: [{ adults: 2, children: [] }]
+    });
+
+    // ✅ Date range state for react-day-picker
+    const [dateRange, setDateRange] = useState({
+        from: new Date(defaultDates.checkIn),
+        to: new Date(defaultDates.checkOut)
     });
 
     // Auto-enable pricing on mount
@@ -354,27 +374,57 @@ function HotelsPerCityPage() {
         localStorage.setItem("favoriteHotels", JSON.stringify(favorites));
     };
 
-    // ✅ Handle date validation
-    const handleDateChange = (type, value) => {
-        if (type === 'checkIn') {
-            setSearchParams(prev => {
-                if (prev.checkOut && new Date(prev.checkOut) <= new Date(value)) {
-                    return { ...prev, checkIn: value, checkOut: null };
-                }
-                return { ...prev, checkIn: value };
-            });
-        } else {
-            setSearchParams(prev => ({ ...prev, checkOut: value }));
+    // ✅ Handle date range selection from react-day-picker
+    const handleDateRangeSelect = (range) => {
+        if (range?.from) {
+            setDateRange(range);
+            setTempSearchParams(prev => ({
+                ...prev,
+                checkIn: range.from.toISOString().split('T')[0],
+                checkOut: range.to ? range.to.toISOString().split('T')[0] : range.from.toISOString().split('T')[0]
+            }));
         }
     };
 
-    // ✅ Handle search/refresh pricing
+    // ✅ NEW: Handle search/refresh pricing (applies temp values to actual searchParams)
     const handleSearchPricing = () => {
-        if (!searchParams.checkIn || !searchParams.checkOut) {
-            toast.error("Veuillez sélectionner les dates de séjour");
+        // Validation
+        if (!tempSearchParams.checkIn || !tempSearchParams.checkOut) {
+            toast.error("Veuillez sélectionner les dates de séjour", {
+                duration: 4000,
+                position: 'top-center',
+            });
             return;
         }
 
+        // Check if check-in is before check-out
+        if (new Date(tempSearchParams.checkIn) >= new Date(tempSearchParams.checkOut)) {
+            toast.error("La date de départ doit être après la date d'arrivée", {
+                duration: 4000,
+                position: 'top-center',
+            });
+            return;
+        }
+
+        // Check if dates are in the past
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (new Date(tempSearchParams.checkIn) < today) {
+            toast.error("La date d'arrivée ne peut pas être dans le passé", {
+                duration: 4000,
+                position: 'top-center',
+            });
+            return;
+        }
+
+        // ✅ Apply temp values to actual searchParams
+        setSearchParams({
+            checkIn: tempSearchParams.checkIn,
+            checkOut: tempSearchParams.checkOut,
+            rooms: tempSearchParams.rooms
+        });
+
+        // Trigger pricing refetch
         setEnablePricing(false);
         setTimeout(() => {
             setEnablePricing(true);
@@ -408,31 +458,89 @@ function HotelsPerCityPage() {
         navigate(`/hotels/${hotelId}`);
     };
 
-    // ✅ Room management
+    // ✅ Room management for TEMP state
     const handleAddRoom = () => {
-        setSearchParams(prev => ({
+        setTempSearchParams(prev => ({
             ...prev,
             rooms: [...prev.rooms, { adults: 1, children: [] }]
         }));
     };
 
     const handleRemoveRoom = (index) => {
-        if (searchParams.rooms.length === 1) {
+        if (tempSearchParams.rooms.length === 1) {
             toast.error("Au moins une chambre requise");
             return;
         }
-        setSearchParams(prev => ({
+        setTempSearchParams(prev => ({
             ...prev,
             rooms: prev.rooms.filter((_, i) => i !== index)
         }));
     };
 
-    const handleUpdateRoom = (index, field, value) => {
-        setSearchParams(prev => ({
+    const handleUpdateRoomAdults = (index, value) => {
+        const numValue = parseInt(value);
+        if (numValue < 1 || numValue > 6) return;
+
+        setTempSearchParams(prev => ({
             ...prev,
             rooms: prev.rooms.map((room, i) =>
-                i === index ? { ...room, [field]: parseInt(value) } : room
+                i === index ? { ...room, adults: numValue } : room
             )
+        }));
+    };
+
+    // ✅ Child management
+    const handleAddChild = (roomIndex) => {
+        setTempSearchParams(prev => ({
+            ...prev,
+            rooms: prev.rooms.map((room, i) => {
+                if (i === roomIndex) {
+                    if (room.children.length >= 4) {
+                        toast.error("Maximum 4 enfants par chambre");
+                        return room;
+                    }
+                    return {
+                        ...room,
+                        children: [...room.children, 1]
+                    };
+                }
+                return room;
+            })
+        }));
+    };
+
+    const handleRemoveChild = (roomIndex, childIndex) => {
+        setTempSearchParams(prev => ({
+            ...prev,
+            rooms: prev.rooms.map((room, i) => {
+                if (i === roomIndex) {
+                    return {
+                        ...room,
+                        children: room.children.filter((_, ci) => ci !== childIndex)
+                    };
+                }
+                return room;
+            })
+        }));
+    };
+
+    const handleUpdateChildAge = (roomIndex, childIndex, age) => {
+        const ageNum = parseInt(age);
+        if (ageNum < 1 || ageNum > 11) return;
+
+        setTempSearchParams(prev => ({
+            ...prev,
+            rooms: prev.rooms.map((room, i) => {
+                if (i === roomIndex) {
+                    return {
+                        ...room,
+                        children: room.children.map((childAge, ci) =>
+                            ci === childIndex ? ageNum : childAge
+                        )
+                    };
+                }
+                return room;
+            })
         }));
     };
 
@@ -464,6 +572,17 @@ function HotelsPerCityPage() {
         };
 
         return cityBanners[cityId] || "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200";
+    };
+
+    // Helper function to format dates
+    const formatDate = (dateString) => {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('fr-FR', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short'
+        });
     };
 
     const isLoading = isLoadingAll || isPaginationLoading;
@@ -536,6 +655,11 @@ function HotelsPerCityPage() {
                                 <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold">
                                     {searchParams.rooms.reduce((sum, room) => sum + room.adults, 0)} adulte{searchParams.rooms.reduce((sum, room) => sum + room.adults, 0) > 1 ? 's' : ''}
                                 </span>
+                                {searchParams.rooms.reduce((sum, room) => sum + room.children.length, 0) > 0 && (
+                                    <span className="px-2 py-1 bg-pink-100 text-pink-700 rounded-full text-xs font-semibold">
+                                        {searchParams.rooms.reduce((sum, room) => sum + room.children.length, 0)} enfant{searchParams.rooms.reduce((sum, room) => sum + room.children.length, 0) > 1 ? 's' : ''}
+                                    </span>
+                                )}
                                 {pricingData && (
                                     <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
                                         ✓ Prix chargés
@@ -552,86 +676,213 @@ function HotelsPerCityPage() {
                         </button>
                     </div>
 
-                    {/* Date Picker Expanded */}
+                    {/* ✅ Date Picker Expanded with react-day-picker */}
                     {showDatePicker && (
-                        <div className="mt-4 p-4 bg-sky-50 rounded-xl border-2 border-sky-200">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Date d'arrivée
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={searchParams.checkIn || ''}
-                                        onChange={(e) => handleDateChange('checkIn', e.target.value)}
-                                        className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
-                                        min={new Date().toISOString().split('T')[0]}
-                                    />
+                        <div className="mt-4 p-4 sm:p-6 bg-gradient-to-br from-sky-50 to-blue-50 rounded-xl border-2 border-sky-200 shadow-inner">
+                            {/* Selected dates display - Full width */}
+                            <div className="mb-4 p-3 bg-white rounded-lg border-2 border-sky-200 flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div>
+                                        <span className="text-xs text-gray-500 block">Date d'arrivée</span>
+                                        <span className="text-sm font-bold text-gray-800">{formatDate(tempSearchParams.checkIn)}</span>
+                                    </div>
+                                    <span className="text-gray-400">→</span>
+                                    <div>
+                                        <span className="text-xs text-gray-500 block">Date de départ</span>
+                                        <span className="text-sm font-bold text-gray-800">{formatDate(tempSearchParams.checkOut)}</span>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Date de départ
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={searchParams.checkOut || ''}
-                                        onChange={(e) => handleDateChange('checkOut', e.target.value)}
-                                        className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
-                                        min={searchParams.checkIn || new Date().toISOString().split('T')[0]}
-                                        disabled={!searchParams.checkIn}
-                                    />
+                                <div className="px-3 py-1 bg-sky-100 text-sky-700 rounded-full text-xs font-semibold">
+                                    {Math.ceil((new Date(tempSearchParams.checkOut) - new Date(tempSearchParams.checkIn)) / (1000 * 60 * 60 * 24))} nuit(s)
                                 </div>
                             </div>
 
-                            {/* Room Selection */}
-                            <div className="mb-4">
-                                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                                    <Users size={18} className="text-gray-600" />
-                                    Chambres et voyageurs
-                                </h4>
-                                {searchParams.rooms.map((room, index) => (
-                                    <div key={index} className="flex items-center gap-3 mb-2 p-3 bg-white rounded-lg border border-gray-200">
-                                        <div className="flex-1">
-                                            <label className="text-xs text-gray-600 font-medium">Chambre {index + 1}</label>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <Users size={16} className="text-gray-400" />
-                                                <input
-                                                    type="number"
-                                                    min="1"
-                                                    max="6"
-                                                    value={room.adults}
-                                                    onChange={(e) => handleUpdateRoom(index, 'adults', e.target.value)}
-                                                    className="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
-                                                />
-                                                <span className="text-xs text-gray-600">adulte(s)</span>
+                            {/* Side by side layout: Calendar + Rooms */}
+                            <div className="flex flex-col lg:flex-row gap-4 mb-6">
+                                {/* Left: Calendar */}
+                                <div className="w-full lg:w-1/3">
+                                    <label className="block text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                        <Calendar size={18} className="text-sky-600" />
+                                        Sélectionnez vos dates
+                                    </label>
+                                    <div className="bg-white rounded-xl p-4 border-2 border-gray-200 shadow-sm">
+                                        {/* ✅ CUSTOM NAVIGATION - Full control */}
+                                        <div className="relative">
+                                            {/* Custom navigation buttons */}
+                                            <div className="flex items-center justify-between mb-3 px-2">
+                                                <button
+                                                    onClick={() => {
+                                                        const newMonth = new Date(currentMonth);
+                                                        newMonth.setMonth(newMonth.getMonth() - 1);
+                                                        setCurrentMonth(newMonth);
+                                                    }}
+                                                    className="w-10 h-10 flex items-center justify-center rounded-lg border-2 border-gray-300 hover:border-sky-500 hover:bg-sky-50 text-sky-600 font-bold text-xl transition-all"
+                                                    aria-label="Mois précédent"
+                                                >
+                                                    ‹
+                                                </button>
+
+                                                <div className="text-center font-bold text-gray-800 capitalize">
+                                                    {currentMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+                                                </div>
+
+                                                <button
+                                                    onClick={() => {
+                                                        const newMonth = new Date(currentMonth);
+                                                        newMonth.setMonth(newMonth.getMonth() + 1);
+                                                        setCurrentMonth(newMonth);
+                                                    }}
+                                                    className="w-10 h-10 flex items-center justify-center rounded-lg border-2 border-gray-300 hover:border-sky-500 hover:bg-sky-50 text-sky-600 font-bold text-xl transition-all"
+                                                    aria-label="Mois suivant"
+                                                >
+                                                    ›
+                                                </button>
                                             </div>
+
+                                            {/* DayPicker WITHOUT navigation */}
+                                            <DayPicker
+                                                mode="range"
+                                                selected={dateRange}
+                                                onSelect={handleDateRangeSelect}
+                                                disabled={(date) => {
+                                                    const today = new Date();
+                                                    today.setHours(0, 0, 0, 0);
+                                                    return date < today;
+                                                }}
+                                                month={currentMonth}
+                                                onMonthChange={setCurrentMonth}
+                                                numberOfMonths={1}
+                                                className="custom-day-picker"
+                                            />
                                         </div>
-                                        {searchParams.rooms.length > 1 && (
-                                            <button
-                                                onClick={() => handleRemoveRoom(index)}
-                                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                            >
-                                                <X size={16} />
-                                            </button>
-                                        )}
                                     </div>
-                                ))}
-                                {searchParams.rooms.length < 5 && (
-                                    <button
-                                        onClick={handleAddRoom}
-                                        className="text-sm text-sky-600 hover:text-sky-700 font-semibold flex items-center gap-1"
-                                    >
-                                        + Ajouter une chambre
-                                    </button>
-                                )}
+                                </div>
+
+                                {/* Right: Rooms and Guests */}
+                                <div className="w-full lg:w-2/3">
+                                    <h4 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                        <Users size={18} className="text-sky-600" />
+                                        Chambres et voyageurs
+                                    </h4>
+                                    <div className="space-y-3 max-h-[450px] overflow-y-auto pr-2">
+                                        {tempSearchParams.rooms.map((room, index) => (
+                                            <div key={index} className="p-3 bg-white rounded-xl border-2 border-gray-200 shadow-sm hover:border-sky-300 transition-all">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <span className="text-xs font-bold text-gray-800 flex items-center gap-1">
+                                                        <Hotel size={14} className="text-gray-600" />
+                                                        Chambre {index + 1}
+                                                    </span>
+                                                    {tempSearchParams.rooms.length > 1 && (
+                                                        <button
+                                                            onClick={() => handleRemoveRoom(index)}
+                                                            className="p-1 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                            title="Supprimer la chambre"
+                                                        >
+                                                            <IoTrashOutline size={16} />
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                {/* Adults */}
+                                                <div className="mb-3">
+                                                    <label className="text-xs text-gray-600 font-semibold mb-1.5 block uppercase tracking-wide">Adultes</label>
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => handleUpdateRoomAdults(index, room.adults - 1)}
+                                                            disabled={room.adults <= 1}
+                                                            className="w-8 h-8 flex items-center justify-center rounded-lg border-2 border-gray-300 hover:border-sky-500 hover:bg-sky-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all font-bold text-base"
+                                                        >
+                                                            −
+                                                        </button>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            max="6"
+                                                            value={room.adults}
+                                                            onChange={(e) => handleUpdateRoomAdults(index, e.target.value)}
+                                                            className="w-16 px-2 py-1.5 border-2 border-gray-300 rounded-lg text-center font-bold text-sm focus:border-sky-500 focus:ring-2 focus:ring-sky-200 transition-all"
+                                                        />
+                                                        <button
+                                                            onClick={() => handleUpdateRoomAdults(index, room.adults + 1)}
+                                                            disabled={room.adults >= 6}
+                                                            className="w-8 h-8 flex items-center justify-center rounded-lg border-2 border-gray-300 hover:border-sky-500 hover:bg-sky-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all font-bold text-base"
+                                                        >
+                                                            +
+                                                        </button>
+                                                        <span className="text-xs text-gray-600 ml-1 font-medium">adulte(s)</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Children */}
+                                                <div>
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <label className="text-xs text-gray-600 font-semibold uppercase tracking-wide">
+                                                            Enfants (1-11 ans)
+                                                        </label>
+                                                        <button
+                                                            onClick={() => handleAddChild(index)}
+                                                            disabled={room.children.length >= 4}
+                                                            className="text-xs text-sky-600 hover:text-sky-700 font-bold flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed px-2 py-1 bg-sky-50 hover:bg-sky-100 rounded-lg transition-all"
+                                                        >
+                                                            <IoAddOutline size={14} />
+                                                            Ajouter
+                                                        </button>
+                                                    </div>
+
+                                                    {room.children.length === 0 ? (
+                                                        <p className="text-xs text-gray-400 italic py-2 text-center bg-gray-50 rounded-lg">Aucun enfant</p>
+                                                    ) : (
+                                                        <div className="space-y-2">
+                                                            {room.children.map((childAge, childIndex) => (
+                                                                <div key={childIndex} className="flex items-center gap-2 p-2 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
+                                                                    <span className="text-xs text-gray-700 font-semibold min-w-[60px]">
+                                                                        Enfant {childIndex + 1}
+                                                                    </span>
+                                                                    <select
+                                                                        value={childAge}
+                                                                        onChange={(e) => handleUpdateChildAge(index, childIndex, e.target.value)}
+                                                                        className="flex-1 px-2 py-1.5 border-2 border-gray-300 rounded-lg text-xs font-semibold focus:border-sky-500 focus:ring-2 focus:ring-sky-200 transition-all bg-white"
+                                                                    >
+                                                                        {[...Array(11)].map((_, i) => (
+                                                                            <option key={i + 1} value={i + 1}>
+                                                                                {i + 1} an{i + 1 > 1 ? 's' : ''}
+                                                                            </option>
+                                                                        ))}
+                                                                    </select>
+                                                                    <button
+                                                                        onClick={() => handleRemoveChild(index, childIndex)}
+                                                                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                                        title="Supprimer l'enfant"
+                                                                    >
+                                                                        <X size={14} />
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {tempSearchParams.rooms.length < 5 && (
+                                        <button
+                                            onClick={handleAddRoom}
+                                            className="w-full mt-3 py-2.5 px-4 border-2 border-dashed border-sky-400 hover:border-sky-600 text-sky-600 hover:bg-sky-50 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
+                                        >
+                                            <IoAddOutline size={18} />
+                                            Ajouter une chambre
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Action Buttons */}
                             <div className="flex gap-3">
                                 <button
                                     onClick={handleSearchPricing}
-                                    disabled={!searchParams.checkIn || !searchParams.checkOut || isLoadingPricing}
-                                    className="flex-1 px-6 py-3 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white font-semibold rounded-lg transition-all flex items-center justify-center gap-2 shadow-md"
+                                    disabled={!tempSearchParams.checkIn || !tempSearchParams.checkOut || isLoadingPricing}
+                                    className="flex-1 px-6 py-3.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-gray-300 disabled:to-gray-400 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl disabled:cursor-not-allowed"
                                 >
                                     {isLoadingPricing ? (
                                         <>
@@ -647,7 +898,7 @@ function HotelsPerCityPage() {
                                 </button>
                                 <button
                                     onClick={() => setShowDatePicker(false)}
-                                    className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-lg transition-all"
+                                    className="px-6 py-3.5 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-xl transition-all"
                                 >
                                     Fermer
                                 </button>
@@ -821,6 +1072,7 @@ function HotelsPerCityPage() {
                                                 onViewDetail={() => handleViewHotelDetail(hotel.Id)}
                                                 showBookButton={true}
                                                 nights={nights}
+                                                searchParams={searchParams}
                                             />
                                         ))}
                                     </div>
@@ -836,6 +1088,7 @@ function HotelsPerCityPage() {
                                                 onViewDetail={() => handleViewHotelDetail(hotel.Id)}
                                                 showBookButton={true}
                                                 nights={nights}
+                                                searchParams={searchParams}
                                             />
                                         ))}
                                     </div>
@@ -872,7 +1125,7 @@ function HotelsPerCityPage() {
                                                     Tous les hôtels affichés !
                                                 </p>
                                                 <p className="text-gray-600 text-xs sm:text-sm">
-                                                    Vous avez vu les {sortedHotels.length} hôtel{sortedHotels.length > 1 ? "s" : ""} disponible{sortedHotels.length > 1 ? "s" : ""}
+                                                    Vous avez vu les {sortedHotels.length} hôtel{sortedHotels.length > 1 ? 's' : ''} disponible{sortedHotels.length > 1 ? 's' : ''}
                                                 </p>
                                             </div>
                                         </div>
@@ -882,48 +1135,6 @@ function HotelsPerCityPage() {
                         )}
                     </main>
                 </div>
-
-                {/* Map View Toggle */}
-                {!isLoading && sortedHotels.length > 0 && (
-                    <div className="mt-6 sm:mt-8 text-center px-2">
-                        <button
-                            onClick={() => setShowMap(!showMap)}
-                            className="inline-flex items-center gap-2 sm:gap-3 px-5 sm:px-8 py-3 sm:py-4 bg-white hover:bg-sky-50 border-2 border-sky-600 text-sky-700 font-bold text-sm sm:text-base lg:text-lg rounded-lg sm:rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 w-full sm:w-auto justify-center"
-                        >
-                            <MapIcon size={20} className="sm:w-6 sm:h-6" />
-                            {showMap ? "Masquer la carte" : "Afficher la carte"}
-                        </button>
-                    </div>
-                )}
-
-                {/* Map Section */}
-                {showMap && (
-                    <div className="mt-6 sm:mt-8 bg-white rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-6">
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-4">
-                            <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-800 flex items-center gap-2 sm:gap-3">
-                                <MapIcon className="text-sky-600 flex-shrink-0" size={24} />
-                                <span>Carte des hôtels</span>
-                            </h3>
-                            <button
-                                onClick={() => setShowMap(false)}
-                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors self-end sm:self-auto"
-                            >
-                                <X size={24} className="text-gray-600" />
-                            </button>
-                        </div>
-                        <div className="h-64 sm:h-80 lg:h-96 bg-gradient-to-br from-sky-100 to-blue-100 rounded-lg sm:rounded-xl flex items-center justify-center">
-                            <div className="text-center px-4">
-                                <MapIcon size={48} className="sm:w-16 sm:h-16 mx-auto text-sky-600 mb-3 sm:mb-4" />
-                                <p className="text-gray-600 font-semibold text-sm sm:text-base">
-                                    Intégration de la carte à venir
-                                </p>
-                                <p className="text-xs sm:text-sm text-gray-500 mt-2">
-                                    Google Maps / Mapbox / Leaflet
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
 
             {/* Mobile Filters Modal */}
@@ -989,43 +1200,134 @@ function HotelsPerCityPage() {
                 </div>
             )}
 
-            <style dangerouslySetInnerHTML={{
-                __html: `
-                    @keyframes fade-in {
-                        from { opacity: 0; }
-                        to { opacity: 1; }
+            {/* ✅ CUSTOM STYLES FOR react-day-picker */}
+            <style dangerouslySetInnerHTML={{__html: `
+                /* react-day-picker custom styling to match sky-blue theme */
+                .custom-day-picker {
+                    --rdp-accent-color: #0284c7;
+                    --rdp-background-color: #e0f2fe;
+                    --rdp-accent-color-dark: #0369a1;
+                    --rdp-background-color-dark: #bae6fd;
+                    --rdp-outline: 2px solid #0ea5e9;
+                    --rdp-outline-selected: 2px solid #0284c7;
+                    font-family: inherit;
+                }
+
+                .custom-day-picker .rdp-month {
+                    margin: 0;
+                }
+
+                /* ✅ HIDE DEFAULT NAVIGATION - We use custom buttons */
+                .custom-day-picker .rdp-nav {
+                    display: none !important;
+                }
+
+                .custom-day-picker .rdp-caption {
+                    display: flex;
+                    justify-content: center;
+                    padding: 0.5rem 1rem !important;
+                    font-weight: 700;
+                    font-size: 1rem;
+                    color: #1f2937;
+                }
+
+                .custom-day-picker .rdp-head_cell {
+                    font-weight: 600;
+                    font-size: 0.875rem;
+                    color: #6b7280;
+                    text-transform: uppercase;
+                    padding: 0.5rem;
+                }
+
+                .custom-day-picker .rdp-day {
+                    width: 2.5rem;
+                    height: 2.5rem;
+                    border-radius: 0.5rem;
+                    font-weight: 600;
+                    transition: all 0.2s;
+                    cursor: pointer;
+                }
+
+                .custom-day-picker .rdp-day:hover:not([disabled]):not(.rdp-day_selected) {
+                    background: #e0f2fe;
+                    color: #0284c7;
+                }
+
+                .custom-day-picker .rdp-day_selected {
+                    background: #0284c7;
+                    color: white;
+                    font-weight: 700;
+                }
+                .custom-day-picker .rdp-months {
+                    margin: 0 auto;
+                }
+
+                .custom-day-picker .rdp-day_selected:hover {
+                    background: #0369a1;
+                }
+
+                .custom-day-picker .rdp-day_range_middle {
+                    background: #e0f2fe;
+                    color: #0284c7;
+                }
+
+                .custom-day-picker .rdp-day_disabled {
+                    opacity: 0.3;
+                    cursor: not-allowed;
+                }
+
+                .custom-day-picker .rdp-day_today:not(.rdp-day_selected) {
+                    font-weight: 700;
+                    color: #0ea5e9;
+                    background: #f0f9ff;
+                }
+
+                /* Custom scrollbar for rooms section */
+                .overflow-y-auto::-webkit-scrollbar {
+                    width: 6px;
+                }
+                .overflow-y-auto::-webkit-scrollbar-track {
+                    background: #f1f5f9;
+                    border-radius: 10px;
+                }
+                .overflow-y-auto::-webkit-scrollbar-thumb {
+                    background: #0284c7;
+                    border-radius: 10px;
+                }
+                .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+                    background: #0369a1;
+                }
+
+                /* Animations */
+                @keyframes fade-in {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                @keyframes slide-up {
+                    from { transform: translateY(100%); }
+                    to { transform: translateY(0); }
+                }
+                .animate-fade-in {
+                    animation: fade-in 0.2s ease-out;
+                }
+                .animate-slide-up {
+                    animation: slide-up 0.3s ease-out;
+                }
+
+                /* Responsive utility */
+                @media (min-width: 375px) {
+                    .xs\\:inline {
+                        display: inline;
                     }
-                    @keyframes slide-up {
-                        from { transform: translateY(100%); }
-                        to { transform: translateY(0); }
+                }
+
+                /* Responsive calendar */
+                @media (max-width: 1024px) {
+                    .custom-day-picker .rdp-months {
+                        flex-direction: column;
                     }
-                    .animate-fade-in {
-                        animation: fade-in 0.2s ease-out;
-                    }
-                    .animate-slide-up {
-                        animation: slide-up 0.3s ease-out;
-                    }
-                    .overflow-y-auto::-webkit-scrollbar {
-                        width: 6px;
-                    }
-                    .overflow-y-auto::-webkit-scrollbar-track {
-                        background: #f1f5f9;
-                        border-radius: 10px;
-                    }
-                    .overflow-y-auto::-webkit-scrollbar-thumb {
-                        background: #0284c7;
-                        border-radius: 10px;
-                    }
-                    .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-                        background: #0369a1;
-                    }
-                    @media (min-width: 375px) {
-                        .xs\\:inline {
-                            display: inline;
-                        }
-                    }
-                `
-            }} />
+                }
+            `}} />
         </div>
     );
 }

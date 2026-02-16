@@ -46,6 +46,9 @@ const ERROR_MESSAGES = {
         NOT_FOUND: 'Resource not found',
         SERVER_ERROR: 'Internal server error',
         REQUEST_FAILED: 'API request failed',
+        BOARDING_TYPE_INVALID: 'Invalid boarding type. Must be one of: RO, BB, HB, FB, AI, SC',
+        INVALID_DATE_RANGE: 'Check-out date must be after check-in date',
+        NO_ROOMS_AVAILABLE: 'No rooms available for the selected dates and criteria',
     },
     fr: {
         TIMEOUT: (count) => `La recherche a pris trop de temps (${count} hôtels). Veuillez réduire le nombre d'hôtels.`,
@@ -61,6 +64,9 @@ const ERROR_MESSAGES = {
         NOT_FOUND: 'Ressource introuvable',
         SERVER_ERROR: 'Erreur interne du serveur',
         REQUEST_FAILED: 'La requête API a échoué',
+        BOARDING_TYPE_INVALID: 'Type de pension invalide. Doit être: RO, BB, HB, FB, AI, SC',
+        INVALID_DATE_RANGE: 'La date de départ doit être après la date d\'arrivée',
+        NO_ROOMS_AVAILABLE: 'Aucune chambre disponible pour les dates et critères sélectionnés',
     }
 };
 
@@ -854,6 +860,298 @@ class ApiClient {
             }
 
             throw error;
+        }
+    }
+
+    /**
+     * Search for room availability and pricing for a specific hotel
+     * @param {Object} params - Search parameters
+     * @param {number} params.hotelId - Hotel ID to search
+     * @param {string} params.checkIn - Check-in date (YYYY-MM-DD)
+     * @param {string} params.checkOut - Check-out date (YYYY-MM-DD)
+     * @param {Array} params.rooms - Array of room configurations [{adults: 2, children: 0}, ...]
+     * @param {string} params.boardingType - Boarding type code (BB, HB, FB, AI)
+     * @returns {Promise} - Available rooms with pricing
+     */
+    async searchRoomAvailability(params = {}) {
+        // Create unique cancel token for this search
+        const cancelToken = this.createCancelToken('roomAvailability');
+
+        try {
+            // Validate required parameters
+            if (!params.hotelId) {
+                throw new Error(this.messages.HOTEL_ID_REQUIRED);
+            }
+
+            if (!params.checkIn) {
+                throw new Error(this.messages.CHECKIN_REQUIRED);
+            }
+
+            if (!params.checkOut) {
+                throw new Error(this.messages.CHECKOUT_REQUIRED);
+            }
+
+            if (!params.rooms || !Array.isArray(params.rooms) || params.rooms.length === 0) {
+                throw new Error(this.messages.ROOMS_REQUIRED);
+            }
+
+            // Validate date format
+            const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+            if (!dateRegex.test(params.checkIn)) {
+                throw new Error(
+                    typeof this.messages.INVALID_DATE_FORMAT === 'function'
+                        ? this.messages.INVALID_DATE_FORMAT('checkIn')
+                        : 'checkIn must be in YYYY-MM-DD format'
+                );
+            }
+            if (!dateRegex.test(params.checkOut)) {
+                throw new Error(
+                    typeof this.messages.INVALID_DATE_FORMAT === 'function'
+                        ? this.messages.INVALID_DATE_FORMAT('checkOut')
+                        : 'checkOut must be in YYYY-MM-DD format'
+                );
+            }
+
+            // Validate dates logic
+            const checkInDate = new Date(params.checkIn);
+            const checkOutDate = new Date(params.checkOut);
+
+            if (checkOutDate <= checkInDate) {
+                throw new Error(this.messages.INVALID_DATE_RANGE);
+            }
+
+            // Build BookingDetails object
+            const bookingDetails = {
+                CheckIn: params.checkIn,
+                CheckOut: params.checkOut,
+                Hotels: [params.hotelId] // Single hotel for room availability
+            };
+
+            // Build Rooms array
+            const rooms = params.rooms.map(room => {
+                const roomObj = {
+                    Adult: room.adults || 2
+                };
+
+                // Add children if specified
+                if (room.children && room.children > 0) {
+                    // Create array of child ages (default to 5 years old if not specified)
+                    roomObj.Child = room.childAges || Array(room.children).fill(5);
+                }
+
+                return roomObj;
+            });
+
+            // Build Filters with boarding type if specified
+            const searchFilters = {
+                Keywords: "",
+                Category: [],
+                OnlyAvailable: true,
+                Tags: []
+            };
+
+            // Add boarding type filter if specified
+            if (params.boardingType) {
+                searchFilters.Boarding = [params.boardingType];
+            }
+
+            // Build complete request body
+            const requestBody = this.createRequestBody({
+                SearchDetails: {
+                    BookingDetails: bookingDetails,
+                    Filters: searchFilters,
+                    Rooms: rooms
+                }
+            });
+
+            if (process.env.NODE_ENV === 'development') {
+                console.log(`🔍 Searching room availability for hotel ${params.hotelId}...`);
+                console.log(`📅 ${params.checkIn} → ${params.checkOut}`);
+                console.log(`🛏️ ${rooms.length} room(s) requested`);
+                if (params.boardingType) {
+                    console.log(`🍽️ Boarding type: ${params.boardingType}`);
+                }
+            }
+
+            // Make request with retry logic and cancellation support
+            const response = await this.retryRequest(async () => {
+                return await this.client.post('/HotelSearch', requestBody, {
+                    timeout: CONFIG.TIMEOUT.SEARCH,
+                    cancelToken: cancelToken.token
+                });
+            });
+
+            // Cleanup cancel token
+            this.cancelTokens.delete('roomAvailability');
+
+            // Extract hotel search results
+            const hotelResults = response.data.HotelSearch || [];
+
+            if (hotelResults.length === 0) {
+                if (process.env.NODE_ENV === 'development') {
+                    console.log('❌ No availability found for the specified dates');
+                }
+                return {
+                    rooms: [],
+                    errorMessage: [this.messages.NO_ROOMS_AVAILABLE],
+                    hotelInfo: null
+                };
+            }
+
+            // Get the first (and should be only) hotel result
+            const hotelResult = hotelResults[0];
+
+            if (!hotelResult.Rooms || hotelResult.Rooms.length === 0) {
+                if (process.env.NODE_ENV === 'development') {
+                    console.log('⚠️ Hotel found but no rooms available');
+                }
+                return {
+                    rooms: [],
+                    errorMessage: ['Hotel found but no rooms available for the selected criteria'],
+                    hotelInfo: {
+                        hotelId: hotelResult.HotelId,
+                        hotelName: hotelResult.HotelName,
+                        available: false
+                    }
+                };
+            }
+
+            // Process and format room results
+            const processedRooms = this._processRoomResults(hotelResult, params.boardingType);
+
+            if (process.env.NODE_ENV === 'development') {
+                console.log(`✅ Found ${processedRooms.length} available room option(s)`);
+            }
+
+            return {
+                rooms: processedRooms,
+                errorMessage: response.data.ErrorMessage || [],
+                hotelInfo: {
+                    hotelId: hotelResult.HotelId,
+                    hotelName: hotelResult.HotelName,
+                    available: true,
+                    totalRooms: processedRooms.length
+                },
+                searchId: response.data.SearchId || null,
+                timing: response.data.Timing || null
+            };
+
+        } catch (error) {
+            // Cleanup cancel token on error
+            this.cancelTokens.delete('roomAvailability');
+
+            // Enhanced error handling
+            if (error.isCancelled) {
+                throw error;
+            }
+
+            if (error.isTimeout) {
+                throw new Error('Room availability search timed out. Please try again.');
+            }
+
+            if (error.isNetworkError) {
+                throw new Error(this.messages.NETWORK);
+            }
+
+            // Log error in development
+            if (process.env.NODE_ENV === 'development') {
+                console.error('❌ Room availability search error:', error.message);
+            }
+
+            throw error;
+        }
+    }
+
+    /**
+     * Process and format room search results
+     * @private
+     * @param {Object} hotelResult - Raw hotel search result
+     * @param {string} boardingType - Requested boarding type
+     * @returns {Array} - Processed room data
+     */
+    _processRoomResults(hotelResult, boardingType = null) {
+        const rooms = [];
+
+        // Iterate through each room configuration in the search result
+        hotelResult.Rooms.forEach((roomConfig, roomIndex) => {
+            // Each room configuration may have multiple room type options
+            if (roomConfig.RoomOptions && Array.isArray(roomConfig.RoomOptions)) {
+                roomConfig.RoomOptions.forEach((option) => {
+                    // Filter by boarding type if specified
+                    if (boardingType && option.BoardingCode !== boardingType) {
+                        return; // Skip this option if boarding type doesn't match
+                    }
+
+                    rooms.push({
+                        id: `${hotelResult.HotelId}_${roomIndex}_${option.RoomCode}_${option.BoardingCode}`,
+                        roomIndex: roomIndex,
+                        name: option.RoomName || option.RoomCode || 'Standard Room',
+                        roomCode: option.RoomCode,
+                        roomType: option.RoomType || 'Standard',
+                        description: option.RoomDescription || '',
+
+                        // Boarding information
+                        boardingCode: option.BoardingCode,
+                        boardingName: option.BoardingName || this._getBoardingName(option.BoardingCode),
+
+                        // Pricing
+                        price: option.Price || 0,
+                        currency: option.Currency || 'DZD',
+                        pricePerNight: option.PricePerNight || 0,
+                        totalPrice: option.TotalPrice || option.Price || 0,
+
+                        // Availability
+                        available: option.Available !== false,
+                        availableRooms: option.AvailableRooms || 1,
+
+                        // Capacity
+                        maxAdults: option.MaxAdults || 2,
+                        maxChildren: option.MaxChildren || 0,
+                        maxOccupancy: option.MaxOccupancy || 2,
+
+                        // Additional info
+                        cancellationPolicy: option.CancellationPolicy || 'Contact hotel for details',
+                        refundable: option.Refundable !== false,
+                        paymentType: option.PaymentType || 'Pay at Hotel',
+
+                        // Raw data for reference
+                        _raw: option
+                    });
+                });
+            }
+        });
+
+        // Sort by price (lowest first)
+        rooms.sort((a, b) => a.price - b.price);
+
+        return rooms;
+    }
+
+    /**
+     * Get boarding name from code
+     * @private
+     * @param {string} code - Boarding code
+     * @returns {string} - Boarding name
+     */
+    _getBoardingName(code) {
+        const boardingMap = {
+            'RO': 'Room Only',
+            'BB': 'Bed & Breakfast',
+            'HB': 'Half Board',
+            'FB': 'Full Board',
+            'AI': 'All Inclusive',
+            'SC': 'Self Catering'
+        };
+        return boardingMap[code] || code;
+    }
+
+    /**
+     * Cancel ongoing room availability search
+     */
+    cancelRoomAvailabilitySearch() {
+        this.cancelRequest('roomAvailability');
+        if (process.env.NODE_ENV === 'development') {
+            console.log('🚫 Room availability search cancelled');
         }
     }
 

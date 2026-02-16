@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MdLocationOn, MdClose } from "react-icons/md";
 import { BsCalendar3, BsSearch } from "react-icons/bs";

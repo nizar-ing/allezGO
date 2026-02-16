@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Calendar, Users, Moon, ArrowLeft, AlertTriangle, ChevronDown } from "lucide-react";
 import HotelsListView from "../ui/HotelsListView.jsx";

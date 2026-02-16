@@ -1,7 +1,11 @@
 const carouselImages = [
     {
         url: "/videos/banner.mp4",
-        alt: "Station balnéaire de luxe avec palmiers et eau cristalline",
+        alt: "banner_video",
+    },
+    {
+        url: "/images/slide9.jpeg",
+        alt: "slide9",
     },
     {
         url: "/images/slide8.webp",
@@ -24,13 +28,6 @@ const carouselImages = [
         title: "Le Paradis Tropical Vous Attend",
         subtitle:
             "Découvrez la détente ultime dans nos stations balnéaires 5 étoiles exclusives à Bali et aux Maldives",
-    },
-    {
-        url: "/images/slide3.jpg",
-        alt: "Bungalows sur pilotis au-dessus d’une mer turquoise et paisible",
-        title: "Évasion Sur Pilotis",
-        subtitle:
-            "Vivez une expérience unique dans des bungalows de luxe au cœur d’eaux cristallines",
     },
     {
         url: "/images/slide4.jpg",
@@ -443,8 +440,8 @@ const testimonials = [
     },
     {
         imageUrl: "/images/nizar-rond.png",
-        name: "نزار اللاهي",
-        citation: "صراحةً كل الشكر للاخ عماد و لولاد لمعاه  . خدمة خمس نجوم لحقيقة ... نتمنالكم كل التوفيق والنجاح."
+        name: "نزار بن محمد",
+        citation: "صراحةً كل الشكر للاخ عماد و الفريق لمعاه. خدمة خمس نجوم لحقيقة ... نتمنالكم كل التوفيق والنجاح."
     },
     {
         imageUrl: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop",

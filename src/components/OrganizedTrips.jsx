@@ -1,5 +1,5 @@
 import DestinationCard from "./DestinationCard.jsx";
-import { Globe, MapPin, Sparkles, Star } from "lucide-react";
+import { MapPin} from "lucide-react";
 
 function OrganizedTrips({ destinations = [] }) {
   return (

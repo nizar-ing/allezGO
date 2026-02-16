@@ -3,7 +3,7 @@ import { IoChevronBack, IoChevronForward, IoPause, IoPlay, IoVolumeHigh, IoVolum
 
 const Carrousel = ({
                       images = [],
-                      autoPlayInterval = 3000,
+                      autoPlayInterval = 6000,
                       showControls = true,
                       showDots = true,
                       showPlayPause = true,
@@ -11,7 +11,7 @@ const Carrousel = ({
                       videoMuted = true,
                   }) => {
     const [currentIndex, setCurrentIndex] = useState(0);
-    const [isAutoPlaying, setIsAutoPlaying] = useState(false);
+    const [isAutoPlaying, setIsAutoPlaying] = useState(true);
     const [isTransitioning, setIsTransitioning] = useState(false);
     const [isMuted, setIsMuted] = useState(videoMuted);
     const [isFirstLoad, setIsFirstLoad] = useState(true);
