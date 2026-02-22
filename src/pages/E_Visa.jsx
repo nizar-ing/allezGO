@@ -18,7 +18,7 @@ import {
     X,
     Loader2,
 } from "lucide-react";
-import { E_VisaData } from "../data/data.js";
+import { E_VisaData } from "../data";
 import { validateVisaData } from "../utils/validateVisaData.js";
 
 /* -------------------------------------------------------------------------- */

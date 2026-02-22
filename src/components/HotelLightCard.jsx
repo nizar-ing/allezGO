@@ -1,675 +1,564 @@
-import  { useState, useMemo, useEffect } from "react";
+// src/components/HotelLightCard.jsx
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-    Heart,
-    MapPin,
-    Star,
-    Wifi,
-    Car,
-    Utensils,
-    Waves,
-    Wind,
-    Coffee,
-    Dumbbell,
-    Sparkles,
-    ChevronRight,
-    CheckCircle2,
-    AlertCircle,
-    Calendar,
-    Users,
-    ChevronDown,
-    ChevronUp,
-    X,
-    Loader2,
+    Heart, MapPin, Star, Wifi, Car, Utensils, Waves,
+    Wind, Coffee, Dumbbell, Sparkles, ChevronRight,
+    CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Loader2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import apiClient from "../services/ApiClient";
 
+// ── Utilities ──────────────────────────────────────────────────────────────────
+
+const formatPrice = (price) => {
+    if (!price) return "0";
+    return new Intl.NumberFormat("fr-DZ").format(price);
+};
+
+// ✅ DOMParser — decodes ALL HTML entities natively, textContent never executes scripts
+const stripHtml = (html = "") => {
+    if (!html) return "";
+    try {
+        const doc  = new DOMParser().parseFromString(html, "text/html");
+        const text = doc.body.textContent || "";
+        return text.replace(/\s+/g, " ").trim();
+    } catch {
+        return html
+            .replace(/<[^>]*>/g, " ")
+            .replace(/&[a-z]+;/gi, " ")
+            .replace(/&#\d+;/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+    }
+};
+
+const getFacilityIcon = (title = "") => {
+    const t = title.toLowerCase();
+    if (t.includes("wifi") || t.includes("internet")) return Wifi;
+    if (t.includes("parking"))                          return Car;
+    if (t.includes("restaurant") || t.includes("bar")) return Utensils;
+    if (t.includes("piscine") || t.includes("plage"))  return Waves;
+    if (t.includes("climatisation"))                    return Wind;
+    if (t.includes("café") || t.includes("petit"))     return Coffee;
+    if (t.includes("sport") || t.includes("gym"))      return Dumbbell;
+    if (t.includes("spa") || t.includes("bien"))       return Sparkles;
+    return CheckCircle2;
+};
+
+// ── Component ──────────────────────────────────────────────────────────────────
+
 function HotelLightCard({
                             hotel,
                             onFavoriteToggle,
-                            pricing = null,
-                            onBook = null,
-                            onViewDetail = null,
-                            showBookButton = false,
-                            nights = 1,
-                            searchParams = null
+                            pricing           = null,
+                            onBook            = null,
+                            onViewDetail      = null,
+                            showBookButton    = false,
+                            nights            = 1,
+                            searchParams      = null,
+                            initialIsFavorite = false,
                         }) {
     const navigate = useNavigate();
-    const [isFavorite, setIsFavorite] = useState(false);
-    const [imageLoaded, setImageLoaded] = useState(false);
-    const [showTarifs, setShowTarifs] = useState(false);
-    const [selectedBoarding, setSelectedBoarding] = useState("petit-dejeuner");
-    const [selectedRoomType, setSelectedRoomType] = useState("double");
 
-    // ✅ API state for real pricing
-    const [apiPrice, setApiPrice] = useState(null);
-    const [isLoadingPrice, setIsLoadingPrice] = useState(false);
+    // ── Refs ───────────────────────────────────────────────────────────────────
+    const cardRef        = useRef(null);
+    // ✅ Fix #1 — ref tracks open state without entering fetchAvailability deps
+    const showTarifsRef  = useRef(false);
+
+    // ── UI state ───────────────────────────────────────────────────────────────
+    const [isFavorite,  setIsFavorite]  = useState(initialIsFavorite);
+    const [imageLoaded, setImageLoaded] = useState(false);
+    const [showTarifs,  setShowTarifs]  = useState(false);
+    const [isLoading,   setIsLoading]   = useState(false);
+
+    // ── Dynamic API state ──────────────────────────────────────────────────────
+    const [allRooms,          setAllRooms]          = useState([]);
+    const [availableBoarding, setAvailableBoarding] = useState([]);
+    const [selectedBoarding,  setSelectedBoarding]  = useState(null);
+    const [noAvailability,    setNoAvailability]    = useState(false);
+    const [hasFetched,        setHasFetched]        = useState(false);
 
     const {
-        Id,
-        Name,
-        Category,
-        City,
-        ShortDescription,
-        Image,
-        Album = [],
-        Facilities = [],
-        Theme = [],
-        Description,
+        Id, Name, Category, City,
+        ShortDescription, Description,
+        Image, Album = [], Facilities = [],
     } = hotel;
 
-    // ✅ Use first album image or fallback to Image property
+    // ── Derived ────────────────────────────────────────────────────────────────
     const hotelImage = useMemo(() => {
-        if (Album && Album.length > 0) {
-            return Album[0];
-        }
-        return Image || "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800";
+        if (Album.length > 0) return Album[0];
+        return Image || "https://loremflickr.com/600/400/hotel,luxury?lock=42";
     }, [Album, Image]);
 
-    // ✅ Get guest count from search params
-    const guestInfo = useMemo(() => {
-        if (!searchParams?.rooms || searchParams.rooms.length === 0) {
-            return { adults: 2, children: 0, totalGuests: 2 };
-        }
+    // ✅ Fix #2 — full decoded text, no JS truncation; line-clamp-3 handles overflow
+    const shortDesc = useMemo(() => {
+        const raw = ShortDescription || Description || "";
+        return stripHtml(raw);
+    }, [ShortDescription, Description]);
 
-        const adults = searchParams.rooms.reduce((sum, room) => sum + (room.adults || 0), 0);
-        const children = searchParams.rooms.reduce((sum, room) => {
-            if (Array.isArray(room.children)) {
-                return sum + room.children.length;
-            }
-            return sum;
-        }, 0);
+    const stars = useMemo(
+        () => (Category?.Star ? Array(Math.min(Category.Star, 5)).fill(0) : []),
+        [Category?.Star]
+    );
 
-        return {
-            adults,
-            children,
-            totalGuests: adults + children
-        };
-    }, [searchParams]);
+    const topFacilities = useMemo(
+        () => Facilities.slice(0, 4),
+        [Facilities]
+    );
 
-    // ✅ Boarding options with API codes
-    const boardingOptions = [
-        { id: "petit-dejeuner", label: "Logement Petit Déjeuner", priceMultiplier: 1, code: "BB" },
-        { id: "demi-pension", label: "Demi Pension", priceMultiplier: 1.3, code: "HB" },
-        { id: "all-inclusive", label: "Soft All Inclusive", priceMultiplier: 1.6, code: "AI" },
-    ];
+    const filteredRooms = useMemo(() => {
+        if (!selectedBoarding) return allRooms;
+        return allRooms.filter(r => r.boardingCode === selectedBoarding);
+    }, [allRooms, selectedBoarding]);
 
-    // ✅ Room types - ONLY SINGLE AND DOUBLE
-    const roomTypes = [
-        { id: "single", label: "Chambre Single" },
-        { id: "double", label: "Chambre Double" },
-    ];
+    // ✅ totalPrice = minPrice × nights
+    const totalPrice = useMemo(() => {
+        if (!pricing?.minPrice || !nights) return null;
+        return pricing.minPrice * nights;
+    }, [pricing?.minPrice, nights]);
 
-    // Format price with thousands separator
-    const formatPrice = (price) => {
-        if (!price) return "0";
-        return new Intl.NumberFormat('fr-FR', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }).format(price);
-    };
+    // ── Fetch availability ─────────────────────────────────────────────────────
+    // ✅ Fix #1 — showTarifs removed from deps; ref used for toast guard instead
+    const fetchAvailability = useCallback(async () => {
+        if (!searchParams?.checkIn || !searchParams?.checkOut) return;
 
-    // ✅ Fetch price from API when room type or boarding changes
-    useEffect(() => {
-        if (showTarifs && searchParams?.checkIn && searchParams?.checkOut) {
-            fetchPriceFromAPI();
-        }
-    }, [selectedRoomType, selectedBoarding, showTarifs]);
+        setIsLoading(true);
+        setNoAvailability(false);
+        setAllRooms([]);
+        setAvailableBoarding([]);
+        setSelectedBoarding(null);
 
-    // ✅ Fetch price from API
-    const fetchPriceFromAPI = async () => {
-        if (!searchParams?.checkIn || !searchParams?.checkOut) {
-            console.log('⚠️ No search dates available');
-            return;
-        }
-
-        setIsLoadingPrice(true);
         try {
-            const currentBoarding = boardingOptions.find(opt => opt.id === selectedBoarding);
-
-            const roomConfig = selectedRoomType === 'single'
-                ? [{ adults: 1, children: 0 }]
-                : [{ adults: 2, children: 0 }];
-
-            console.log('========================================');
-            console.log('🔍 FETCHING PRICE');
-            console.log('Hotel ID:', Id);
-            console.log('Hotel Name:', Name);
-            console.log('Check-in:', searchParams.checkIn);
-            console.log('Check-out:', searchParams.checkOut);
-            console.log('Room Type:', selectedRoomType);
-            console.log('Boarding:', currentBoarding.code);
-            console.log('Room Config:', roomConfig);
-            console.log('========================================');
-
             const response = await apiClient.searchRoomAvailability({
-                hotelId: Id,
-                checkIn: searchParams.checkIn,
+                hotelId:  Id,
+                checkIn:  searchParams.checkIn,
                 checkOut: searchParams.checkOut,
-                rooms: roomConfig,
+                rooms: searchParams.rooms?.map(r => ({
+                    adults:    r.adults ?? 2,
+                    children:  Array.isArray(r.children) ? r.children.length : 0,
+                    childAges: Array.isArray(r.children) ? r.children : [],
+                })) ?? [{ adults: 2, children: 0, childAges: [] }],
             });
 
-            console.log('📦 RAW API RESPONSE:', JSON.stringify(response, null, 2));
-
-            if (response.errorMessage && response.errorMessage.length > 0) {
-                console.log('⚠️ API ERROR MESSAGES:', response.errorMessage);
-            }
-
-            if (!response.rooms || response.rooms.length === 0) {
-                console.log('❌ API RETURNED ZERO ROOMS');
-                console.log('This hotel has NO availability for these dates/criteria');
-                console.log('💡 Will use fallback pricing with room type differentiation');
-                setApiPrice(null);
+            if (!response.rooms?.length) {
+                setNoAvailability(true);
                 return;
             }
 
-            console.log('✅ API RETURNED', response.rooms.length, 'ROOMS');
-            console.log('🛏️ ALL ROOMS:', response.rooms);
-
-            // Find matching room
-            let matchedRoom = response.rooms.find(room =>
-                room.boardingCode === currentBoarding.code
-            );
-
-            if (!matchedRoom) {
-                console.log('⚠️ No room with boarding', currentBoarding.code);
-                console.log('Available boarding types:', response.rooms.map(r => r.boardingCode));
-                matchedRoom = response.rooms[0];
-            } else {
-                console.log('✅ Found room with boarding', currentBoarding.code);
-            }
-
-            console.log('💰 SELECTED ROOM:', {
-                name: matchedRoom.name,
-                price: matchedRoom.price,
-                currency: matchedRoom.currency,
-                boarding: matchedRoom.boardingName,
-                boardingCode: matchedRoom.boardingCode
-            });
-
-            setApiPrice(matchedRoom.price);
-        } catch (error) {
-            console.error("❌ ERROR:", error);
-            setApiPrice(null);
-        } finally {
-            setIsLoadingPrice(false);
-        }
-    };
-
-    // ✅ IMPROVED: Different prices for Single vs Double even without API
-    const displayPrice = useMemo(() => {
-        // Use API price if available
-        if (apiPrice !== null) {
-            console.log('💰 Using API price:', apiPrice);
-            return apiPrice;
-        }
-
-        // FALLBACK: Calculate price based on room type + boarding
-        if (!pricing?.minPrice) return 0;
-
-        const selectedOption = boardingOptions.find(opt => opt.id === selectedBoarding);
-        const basePrice = pricing.minPrice * (selectedOption?.priceMultiplier || 1);
-
-        // ✅ Apply room type multiplier
-        // Single room = 70% of base price (1 person)
-        // Double room = 100% of base price (2 people)
-        const roomTypeMultiplier = selectedRoomType === 'single' ? 0.7 : 1.0;
-
-        const finalPrice = basePrice * roomTypeMultiplier;
-
-        console.log('💰 Using FALLBACK price calculation:', {
-            basePrice: pricing.minPrice,
-            boarding: selectedOption?.label,
-            boardingMultiplier: selectedOption?.priceMultiplier,
-            roomType: selectedRoomType,
-            roomTypeMultiplier,
-            finalPrice
-        });
-
-        return finalPrice;
-    }, [apiPrice, pricing, selectedBoarding, selectedRoomType]);
-
-    // Handle favorite toggle
-    const handleFavoriteClick = (e) => {
-        e.stopPropagation();
-        setIsFavorite(!isFavorite);
-        onFavoriteToggle?.(Id, !isFavorite);
-        toast.success(
-            isFavorite ? "Retiré des favoris" : "Ajouté aux favoris",
-            { duration: 2000, icon: isFavorite ? "💔" : "❤️" }
-        );
-    };
-
-    // ✅ Navigate to hotel detail page
-    const handleCardClick = () => {
-        if (showTarifs) return; // Don't navigate if tarifs section is open
-
-        if (onViewDetail) {
-            onViewDetail(Id);
-        } else {
-            navigate(`/hotels/${Id}`, {
-                state: { hotel, searchParams }
-            });
-        }
-    };
-
-    // ✅ Toggle tarifs section
-    const handleTarifsClick = (e) => {
-        e.stopPropagation();
-        setShowTarifs(!showTarifs);
-    };
-
-    // ✅ Handle reservation
-    const handleReservation = (e) => {
-        e.stopPropagation();
-
-        if (onBook) {
-            onBook();
-        } else {
-            navigate(`/hotels/${Id}`, {
-                state: {
-                    hotel,
-                    searchParams,
-                    selectedBoarding: boardingOptions.find(opt => opt.id === selectedBoarding)?.code,
-                    selectedRoomType,
-                    price: displayPrice
+            const boardingMap = new Map();
+            response.rooms.forEach(room => {
+                if (!boardingMap.has(room.boardingCode)) {
+                    boardingMap.set(room.boardingCode, {
+                        code:  room.boardingCode,
+                        label: room.boardingName,
+                    });
                 }
             });
+
+            const dynamicBoarding = Array.from(boardingMap.values());
+            setAllRooms(response.rooms);
+            setAvailableBoarding(dynamicBoarding);
+            setSelectedBoarding(dynamicBoarding[0]?.code ?? null);
+            setHasFetched(true);
+
+        } catch (err) {
+            if (!err.isCancelled) {
+                // ✅ Fix #1 — reads ref, not captured state value
+                if (showTarifsRef.current) {
+                    toast.error("Erreur lors de la recherche de disponibilités.");
+                }
+                setNoAvailability(true);
+                setAvailableBoarding([]);
+            }
+        } finally {
+            setIsLoading(false);
         }
-    };
+    }, [Id, searchParams]); // ✅ showTarifs gone — stable across panel open/close
 
-    // Get facility icon
-    const getFacilityIcon = (facilityTitle) => {
-        const title = facilityTitle.toLowerCase();
-        if (title.includes("wifi") || title.includes("internet")) return Wifi;
-        if (title.includes("parking")) return Car;
-        if (title.includes("restaurant") || title.includes("bar")) return Utensils;
-        if (title.includes("piscine") || title.includes("plage")) return Waves;
-        if (title.includes("climatisation")) return Wind;
-        if (title.includes("café") || title.includes("petit")) return Coffee;
-        if (title.includes("sport") || title.includes("gym")) return Dumbbell;
-        if (title.includes("spa") || title.includes("bien-être")) return Sparkles;
-        return CheckCircle2;
-    };
+    // ── Option C — Viewport prefetch ───────────────────────────────────────────
+    useEffect(() => {
+        if (!searchParams?.checkIn || !searchParams?.checkOut) return;
+        if (hasFetched) return;
 
-    // Get top 4 facilities for display
-    const topFacilities = Facilities.slice(0, 4);
+        const el = cardRef.current;
+        if (!el) return;
 
-    // Get short description (max 150 chars)
-    const shortDesc = useMemo(() => {
-        const desc = ShortDescription || Description || "";
-        if (desc.length <= 150) return desc;
-        return desc.substring(0, 150) + "...";
-    }, [ShortDescription, Description]);
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting) {
+                    void fetchAvailability();
+                    observer.unobserve(el);
+                }
+            },
+            {
+                threshold:  0.1,
+                rootMargin: "200px",
+            }
+        );
+
+        observer.observe(el);
+        // ✅ Fix #6 — disconnect is universally safe even if el is unmounted
+        return () => observer.disconnect();
+    }, [searchParams, hasFetched, fetchAvailability]);
+
+    // ── Handlers ───────────────────────────────────────────────────────────────
+    const handleToggleTarifs = useCallback(() => {
+        const next = !showTarifs;
+        showTarifsRef.current = next;          // ✅ Fix #1 — keep ref in sync with state
+        setShowTarifs(next);
+        if (next && !hasFetched) void fetchAvailability();
+    }, [showTarifs, hasFetched, fetchAvailability]);
+
+    // ✅ Fix #3 — fetchAvailability is already self-resetting; no need for setHasFetched(false)
+    const handleRefresh = useCallback(() => {
+        void fetchAvailability();
+    }, [fetchAvailability]);
+
+    const handleFavoriteClick = useCallback((e) => {
+        e.stopPropagation();
+        const next = !isFavorite;
+        setIsFavorite(next);
+        onFavoriteToggle?.(Id, next);
+        toast.success(next ? "Ajouté aux favoris" : "Retiré des favoris");
+    }, [isFavorite, Id, onFavoriteToggle]);
+
+    const handleBook = useCallback((room) => {
+        if (onBook) {
+            onBook(hotel, room);
+        } else {
+            navigate(
+                `/hotels-search?hotelId=${Id}` +
+                `&checkIn=${searchParams?.checkIn}` +
+                `&checkOut=${searchParams?.checkOut}` +
+                `&rooms=${encodeURIComponent(JSON.stringify(searchParams?.rooms ?? []))}`,
+                { state: { hotel, selectedRoom: room, searchParams, nights } }
+            );
+        }
+    }, [onBook, hotel, navigate, Id, searchParams, nights]);
+
+    const handleViewDetail = useCallback(() => {
+        if (onViewDetail) onViewDetail(Id);
+        else navigate(`/hotels/${Id}`);
+    }, [onViewDetail, navigate, Id]);
+
+    // ──────────────────────────────────────────────────────────────────────────
 
     return (
-        <div className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 border-transparent hover:border-sky-200">
-            <div
-                onClick={handleCardClick}
-                className="cursor-pointer"
-            >
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-0">
-                    {/* Left Side - Image */}
-                    <div className="md:col-span-4 relative h-64 md:h-full min-h-[250px]">
-                        {/* Image Container */}
-                        <div className="relative w-full h-full overflow-hidden">
-                            {!imageLoaded && (
-                                <div className="absolute inset-0 bg-gradient-to-br from-sky-100 to-blue-100 animate-pulse"></div>
-                            )}
-                            <img
-                                src={hotelImage}
-                                alt={Name}
-                                onLoad={() => setImageLoaded(true)}
-                                onError={(e) => {
-                                    e.target.src = "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800";
-                                    setImageLoaded(true);
-                                }}
-                                className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ${
-                                    imageLoaded ? "opacity-100" : "opacity-0"
-                                }`}
-                            />
+        <div ref={cardRef} className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 group">
 
-                            {/* Gradient Overlay */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            {/* ── Top section: image left + content right ─────────────────── */}
+            <div className="flex flex-col sm:flex-row">
+
+                {/* Image */}
+                <div
+                    className="relative sm:w-72 md:w-80 lg:w-96 h-64 sm:h-72 md:h-80 flex-shrink-0 cursor-pointer overflow-hidden"
+                    onClick={handleViewDetail}
+                >
+                    {!imageLoaded && (
+                        <div className="absolute inset-0 bg-gray-200 animate-pulse" />
+                    )}
+                    <img
+                        src={hotelImage}
+                        alt={Name}
+                        className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500
+                            ${imageLoaded ? "opacity-100" : "opacity-0"}`}
+                        onLoad={() => setImageLoaded(true)}
+                        onError={(e) => {
+                            e.target.src = "https://loremflickr.com/600/400/hotel,luxury?lock=42";
+                            setImageLoaded(true);
+                        }}
+                        loading="lazy"
+                    />
+
+                    {/* Stars badge */}
+                    {stars.length > 0 && (
+                        <div className="absolute top-3 left-3 flex items-center gap-0.5 bg-orange-500 px-2.5 py-1 rounded-full shadow">
+                            {stars.map((_, i) => (
+                                <Star key={i} size={12} fill="white" className="text-white" />
+                            ))}
                         </div>
+                    )}
 
-                        {/* Favorite Button */}
-                        <button
-                            onClick={handleFavoriteClick}
-                            className="absolute top-4 right-4 p-3 bg-white/90 backdrop-blur-sm rounded-full shadow-lg hover:scale-110 hover:bg-white transition-all duration-300 z-10"
-                            aria-label="Ajouter aux favoris"
-                        >
-                            <Heart
-                                size={20}
-                                className={`transition-all duration-300 ${
-                                    isFavorite
-                                        ? "fill-red-500 text-red-500"
-                                        : "text-gray-600 hover:text-red-500"
-                                }`}
-                            />
-                        </button>
+                    {/* Favorite */}
+                    <button
+                        onClick={handleFavoriteClick}
+                        className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-sm rounded-full shadow hover:scale-110 transition-transform"
+                    >
+                        <Heart
+                            size={18}
+                            className={isFavorite ? "fill-red-500 text-red-500" : "text-gray-400"}
+                        />
+                    </button>
 
-                        {/* ✅ Available Badge */}
-                        {pricing && pricing.available && (
-                            <div className="absolute top-4 left-4 px-4 py-2 bg-green-600 text-white text-xs font-bold rounded-lg shadow-lg flex items-center gap-2">
-                                <CheckCircle2 size={14} />
-                                Disponible
-                            </div>
-                        )}
-
-                        {/* Theme Tags (Bottom Left) */}
-                        {Theme.length > 0 && (
-                            <div className="absolute bottom-4 left-4 flex flex-wrap gap-2">
-                                {Theme.slice(0, 2).map((theme, index) => (
-                                    <span
-                                        key={index}
-                                        className="px-3 py-1 bg-orange-500/90 backdrop-blur-sm text-white text-xs font-semibold rounded-full shadow-lg"
-                                    >
-                                        {theme}
-                                    </span>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Right Side - Content */}
-                    <div className="md:col-span-8 flex flex-col">
-                        <div className="flex-1 p-6">
-                            {/* Header Section */}
-                            <div className="flex items-start justify-between mb-4">
-                                <div className="flex-1">
-                                    {/* Hotel Name */}
-                                    <h3 className="text-2xl font-bold text-gray-800 mb-2 group-hover:text-sky-600 transition-colors">
-                                        {Name}
-                                    </h3>
-
-                                    {/* Location */}
-                                    <div className="flex items-center gap-2 text-gray-600 mb-3">
-                                        <MapPin size={16} className="text-sky-600 flex-shrink-0" />
-                                        <span className="text-sm">
-                                            {City?.Name || "Localisation"}{City?.Country?.Name && `, ${City.Country.Name}`}
-                                        </span>
-                                    </div>
-
-                                    {/* Stars */}
-                                    {Category?.Star && (
-                                        <div className="flex items-center gap-1 mb-3">
-                                            {[...Array(Category.Star)].map((_, i) => (
-                                                <Star
-                                                    key={i}
-                                                    size={18}
-                                                    fill="#f97316"
-                                                    className="text-orange-500"
-                                                />
-                                            ))}
-                                            <span className="ml-2 text-sm text-gray-600 font-medium">
-                                                {Category.Star} étoiles
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Rating Badge */}
-                                {Category?.Star && (
-                                    <div className="flex flex-col items-end ml-4">
-                                        <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-red-500 text-white font-bold text-xl rounded-xl flex items-center justify-center shadow-lg">
-                                            {Category.Star}★
-                                        </div>
-                                        <div className="text-xs text-gray-500 mt-1">
-                                            {Category.Title || "Hôtel"}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Description */}
-                            {shortDesc && (
-                                <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                                    {shortDesc}
+                    {/* ✅ Image overlay — totalPrice + per-night hint */}
+                    {pricing?.minPrice && (
+                        <div className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-xl shadow-lg">
+                            <p className="text-xs text-gray-400 leading-none">À partir de</p>
+                            <p className="text-sm font-bold text-sky-700 leading-tight">
+                                {formatPrice(totalPrice ?? pricing.minPrice)}
+                                <span className="text-xs font-normal text-gray-400 ml-1">DZD</span>
+                            </p>
+                            {nights > 1 && (
+                                <p className="text-xs text-gray-400 leading-none mt-0.5">
+                                    {formatPrice(pricing.minPrice)} / nuit
                                 </p>
                             )}
+                        </div>
+                    )}
+                </div>
 
-                            {/* Facilities */}
-                            {topFacilities.length > 0 && (
-                                <div className="flex flex-wrap gap-3 mb-4">
-                                    {topFacilities.map((facility, index) => {
-                                        const Icon = getFacilityIcon(facility.Title);
-                                        return (
-                                            <div
-                                                key={index}
-                                                className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg text-sm text-gray-700 hover:bg-sky-50 hover:text-sky-700 transition-all"
-                                                title={facility.Title}
-                                            >
-                                                <Icon size={16} className="text-sky-600" />
-                                                <span className="font-medium truncate max-w-[120px]">
-                                                    {facility.Title}
-                                                </span>
-                                            </div>
-                                        );
-                                    })}
-                                    {Facilities.length > 4 && (
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleCardClick();
-                                            }}
-                                            className="px-3 py-2 text-sm text-sky-600 hover:text-sky-700 font-semibold hover:bg-sky-50 rounded-lg transition-all"
+                {/* Content */}
+                <div className="flex-1 p-5 sm:p-6 flex flex-col justify-between min-w-0">
+                    <div className="space-y-3">
+
+                        {/* Name + City */}
+                        <div>
+                            <h3
+                                className="font-bold text-gray-800 text-lg sm:text-xl leading-tight cursor-pointer hover:text-sky-700 transition-colors line-clamp-1 mb-1"
+                                onClick={handleViewDetail}
+                            >
+                                {Name}
+                            </h3>
+                            <div className="flex items-center gap-1.5 text-gray-500 text-sm">
+                                <MapPin size={14} className="text-sky-500 flex-shrink-0" />
+                                <span className="truncate">
+                                    {City?.Name}{City?.Country?.Name ? `, ${City.Country.Name}` : ""}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* ✅ Fix #2 — full decoded text, line-clamp-3 handles visual overflow */}
+                        {shortDesc && (
+                            <p className="text-gray-500 text-sm line-clamp-3 leading-relaxed">
+                                {shortDesc}
+                            </p>
+                        )}
+
+                        {/* ✅ Fix #5 — stable key using f.Title */}
+                        {topFacilities.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                                {topFacilities.map((f, i) => {
+                                    const Icon = getFacilityIcon(f.Title || "");
+                                    return (
+                                        <span
+                                            key={f.Title ?? i}
+                                            className="flex items-center gap-1 px-2.5 py-1 bg-sky-50 text-sky-700 rounded-full text-xs border border-sky-100"
                                         >
-                                            +{Facilities.length - 4} autres
-                                        </button>
+                                            <Icon size={12} />
+                                            {f.Title}
+                                        </span>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Nights + guests info row */}
+                        {searchParams && (
+                            <div className="flex items-center gap-3 text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2 w-fit">
+                                <span>🌙 {nights} nuit{nights > 1 ? "s" : ""}</span>
+                                <span>•</span>
+                                <span>
+                                    👤 {searchParams.rooms?.reduce((s, r) => s + (r.adults || 0), 0)} adulte(s)
+                                </span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ── Bottom: price + buttons ────────────────────────── */}
+                    <div className="flex items-end justify-between gap-3 flex-wrap mt-5 pt-4 border-t border-gray-100">
+
+                        {/* Price block */}
+                        <div className="flex flex-col justify-end">
+                            {pricing?.minPrice ? (
+                                <div className="flex flex-col">
+                                    <span className="text-xs text-gray-400 leading-none mb-0.5">
+                                        À partir de
+                                    </span>
+                                    <div className="flex items-baseline gap-1">
+                                        <span className="text-2xl font-extrabold text-sky-700 leading-none">
+                                            {formatPrice(totalPrice ?? pricing.minPrice)}
+                                        </span>
+                                        <span className="text-xs font-medium text-gray-400">DZD</span>
+                                    </div>
+                                    {nights > 1 ? (
+                                        <span className="text-xs text-gray-400 mt-0.5">
+                                            {nights} nuits · {formatPrice(pricing.minPrice)} DZD / nuit
+                                        </span>
+                                    ) : (
+                                        <span className="text-xs text-gray-400 mt-0.5">
+                                            / nuit · par chambre
+                                        </span>
                                     )}
+                                </div>
+                            ) : (
+                                <div className="flex flex-col">
+                                    <span className="text-xs text-gray-400 leading-none mb-0.5">Tarif</span>
+                                    <span className="text-sm font-semibold text-gray-400 italic">Sur demande</span>
                                 </div>
                             )}
                         </div>
 
-                        {/* Footer Section - Pricing & CTA */}
-                        <div className="border-t-2 border-gray-100 p-6 bg-gradient-to-r from-gray-50 to-white">
-                            <div className="flex items-end justify-between gap-4">
-                                <div className="flex-1">
-                                    {/* Stay Info */}
-                                    <div className="flex items-center gap-3 text-xs text-gray-500 mb-2">
-                                        <div className="flex items-center gap-1">
-                                            <Calendar size={14} />
-                                            <span>{nights} nuit{nights > 1 ? 's' : ''}</span>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <Users size={14} />
-                                            <span>
-                                                {guestInfo.adults} adulte{guestInfo.adults > 1 ? 's' : ''}
-                                                {guestInfo.children > 0 && `, ${guestInfo.children} enfant${guestInfo.children > 1 ? 's' : ''}`}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Pricing Display */}
-                                    {pricing && pricing.minPrice ? (
-                                        <>
-                                            <div className="flex items-baseline gap-2 mb-1">
-                                                <span className="text-xs text-gray-500">à partir de</span>
-                                                <span className="text-3xl font-bold text-gray-800">
-                                                    {formatPrice(pricing.minPrice)}
-                                                </span>
-                                                <span className="text-lg font-semibold text-gray-600">
-                                                    {pricing.currency}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-xs text-gray-500">
-                                                    Logement Petit Déjeuner
-                                                </span>
-                                            </div>
-                                        </>
-                                    ) : pricing && !pricing.available ? (
-                                        <div className="flex items-center gap-2 text-orange-600">
-                                            <AlertCircle size={20} />
-                                            <span className="font-semibold">Non disponible pour ces dates</span>
-                                        </div>
-                                    ) : (
-                                        <div>
-                                            <div className="text-xl font-bold text-gray-600 mb-1">
-                                                Prix sur demande
-                                            </div>
-                                            <div className="text-xs text-gray-500">
-                                                Sélectionnez des dates pour voir les prix
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* CTA Button */}
-                                <div className="flex flex-col gap-2">
-                                    {showBookButton && pricing && pricing.minPrice ? (
-                                        <button
-                                            onClick={handleTarifsClick}
-                                            className="px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 flex items-center gap-2 group/btn whitespace-nowrap"
-                                        >
-                                            Tarifs & Chambres
-                                            {showTarifs ? (
-                                                <ChevronUp size={18} className="transition-transform" />
-                                            ) : (
-                                                <ChevronDown size={18} className="transition-transform" />
-                                            )}
-                                        </button>
-                                    ) : (
-                                        <button
-                                            onClick={handleCardClick}
-                                            className="px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 flex items-center gap-2 group/btn whitespace-nowrap"
-                                        >
-                                            Voir les disponibilités
-                                            <ChevronRight
-                                                size={18}
-                                                className="group-hover/btn:translate-x-1 transition-transform"
-                                            />
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
+                        {/* Action buttons */}
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleViewDetail}
+                                className="px-4 py-2 border border-sky-300 text-sky-700 hover:bg-sky-50 rounded-lg text-sm font-semibold transition-all flex items-center gap-1"
+                            >
+                                Détail <ChevronRight size={14} />
+                            </button>
+                            <button
+                                onClick={handleToggleTarifs}
+                                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-semibold transition-all flex items-center gap-1.5 shadow-sm"
+                            >
+                                Tarifs & Chambres
+                                {showTarifs ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* ✅ EXPANDABLE TARIFS & CHAMBRES SECTION */}
-            <div
-                className={`overflow-hidden transition-all duration-500 ease-in-out ${
-                    showTarifs ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'
-                }`}
-            >
-                <div className="border-t-4 border-sky-200 bg-gradient-to-br from-sky-50 to-blue-50 p-6">
-                    {/* Header with close button */}
-                    <div className="flex items-center justify-between mb-6">
-                        <h4 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                            <span className="w-1 h-6 bg-sky-600 rounded-full"></span>
-                            Choisissez votre formule et chambre(s)
-                        </h4>
-                        <button
-                            onClick={handleTarifsClick}
-                            className="p-2 bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
-                            title="Fermer"
-                        >
-                            <X size={24} className="text-white font-bold" />
-                        </button>
-                    </div>
+            {/* ── Tarifs panel ────────────────────────────────────────────────── */}
+            {showTarifs && (
+                <div className="border-t border-gray-100">
 
-                    {/* Boarding Type Tabs */}
-                    <div className="flex flex-wrap gap-2 mb-6">
-                        {boardingOptions.map((option) => (
+                    {/* Panel header */}
+                    <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-100">
+                        <p className="text-sm font-bold text-gray-700">
+                            Choisissez votre formule
+                        </p>
+                        {hasFetched && !isLoading && (
                             <button
-                                key={option.id}
-                                onClick={() => setSelectedBoarding(option.id)}
-                                className={`px-4 py-2.5 rounded-xl font-semibold text-sm transition-all duration-300 ${
-                                    selectedBoarding === option.id
-                                        ? 'bg-sky-600 text-white shadow-lg scale-105'
-                                        : 'bg-white text-gray-700 hover:bg-sky-100 border-2 border-gray-200'
-                                }`}
+                                onClick={handleRefresh}
+                                className="text-xs text-sky-600 hover:text-sky-800 font-semibold underline underline-offset-2"
                             >
-                                {option.label}
+                                Actualiser
                             </button>
-                        ))}
+                        )}
                     </div>
 
-                    {/* Room Selection */}
-                    <div className="bg-white rounded-xl p-5 shadow-md border-2 border-sky-100">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm font-bold text-gray-800">
-                                    Chambre 1: {guestInfo.adults} adulte{guestInfo.adults > 1 ? 's' : ''}
-                                    {guestInfo.children > 0 && `, ${guestInfo.children} enfant${guestInfo.children > 1 ? 's' : ''}`}
-                                </span>
-                                <span className="px-2 py-1 bg-sky-100 text-sky-700 text-xs font-semibold rounded-full">
-                                    Info
-                                </span>
-                            </div>
-                            <div className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-lg flex items-center gap-1">
-                                <CheckCircle2 size={14} />
-                                Disponible
-                            </div>
+                    {/* Loading */}
+                    {isLoading && (
+                        <div className="flex items-center justify-center gap-3 py-10">
+                            <Loader2 size={28} className="animate-spin text-sky-500" />
+                            <p className="text-sm text-gray-500">Recherche des disponibilités...</p>
                         </div>
+                    )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                            {/* Room Type Dropdown */}
-                            <div className="md:col-span-2">
-                                <label className="block text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">
-                                    Type de chambre
-                                </label>
-                                <select
-                                    value={selectedRoomType}
-                                    onChange={(e) => setSelectedRoomType(e.target.value)}
-                                    className="w-full px-4 py-3 bg-white border-2 border-gray-300 rounded-xl text-sm font-semibold text-gray-800 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 transition-all cursor-pointer hover:border-sky-400 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    onClick={(e) => e.stopPropagation()}
-                                    disabled={isLoadingPrice}
-                                >
-                                    {roomTypes.map((room) => (
-                                        <option key={room.id} value={room.id}>
-                                            {room.label}
-                                        </option>
-                                    ))}
-                                </select>
+                    {/* No availability */}
+                    {!isLoading && noAvailability && (
+                        <div className="flex flex-col items-center justify-center py-8 px-4 gap-2 text-center">
+                            <AlertCircle size={28} className="text-orange-400" />
+                            <p className="text-sm font-semibold text-orange-700">
+                                Aucune disponibilité pour ces dates
+                            </p>
+                            <p className="text-xs text-gray-500">
+                                Veuillez modifier vos dates ou consulter la fiche complète.
+                            </p>
+                            <button
+                                onClick={handleViewDetail}
+                                className="mt-2 px-4 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                            >
+                                Voir la fiche hôtel
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Boarding tabs + rooms */}
+                    {!isLoading && !noAvailability && availableBoarding.length > 0 && (
+                        <>
+                            {/* Tabs */}
+                            <div className="flex gap-2 px-4 pt-3 pb-2 overflow-x-auto scrollbar-hide">
+                                {availableBoarding.map((board) => (
+                                    <button
+                                        key={board.code}
+                                        onClick={() => setSelectedBoarding(board.code)}
+                                        className={`
+                                            flex-shrink-0 px-4 py-1.5 rounded-lg text-xs font-semibold
+                                            transition-all whitespace-nowrap border
+                                            ${selectedBoarding === board.code
+                                            ? "bg-sky-600 text-white border-sky-600 shadow-sm"
+                                            : "bg-white text-gray-600 border-gray-300 hover:border-sky-400 hover:text-sky-700"
+                                        }
+                                        `}
+                                    >
+                                        {board.label}
+                                    </button>
+                                ))}
                             </div>
 
-                            {/* Price per room - WITH API INTEGRATION */}
-                            <div className="text-right">
-                                {isLoadingPrice ? (
-                                    <div className="flex items-center justify-end gap-2">
-                                        <Loader2 className="w-5 h-5 text-sky-600 animate-spin" />
-                                        <span className="text-sm text-gray-600">Chargement...</span>
-                                    </div>
+                            {/* Room rows */}
+                            <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
+                                {filteredRooms.length === 0 ? (
+                                    <p className="text-center text-sm text-gray-400 py-6">
+                                        Aucune chambre disponible pour cette formule.
+                                    </p>
                                 ) : (
-                                    <>
-                                        <div className="text-xs text-gray-500 mb-1">
-                                            {boardingOptions.find(opt => opt.id === selectedBoarding)?.label}
-                                        </div>
-                                        <div className="text-2xl font-black text-gray-800">
-                                            {formatPrice(displayPrice)}
-                                        </div>
-                                    </>
+                                    filteredRooms.map((room) => {
+                                        // ✅ Fix #4 — strict nights >= 1 guard
+                                        const roomTotal = room.price != null && nights >= 1
+                                            ? room.price * nights
+                                            : room.price;
+                                        return (
+                                            <div
+                                                key={room.id}
+                                                className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-sky-50/60 transition-colors"
+                                            >
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-semibold text-gray-800 truncate">
+                                                        {room.name}
+                                                    </p>
+                                                    <p className="text-xs text-gray-400">{room.boardingName}</p>
+                                                </div>
+
+                                                <div className="flex items-center gap-3 flex-shrink-0">
+                                                    <div className="text-right">
+                                                        <p className="text-sm font-bold text-sky-700">
+                                                            {formatPrice(roomTotal)}
+                                                        </p>
+                                                        {nights > 1 ? (
+                                                            <p className="text-xs text-gray-400">
+                                                                {room.currency} · {formatPrice(room.price)} / nuit
+                                                            </p>
+                                                        ) : (
+                                                            <p className="text-xs text-gray-400">
+                                                                {room.currency} / nuit
+                                                            </p>
+                                                        )}
+                                                    </div>
+
+                                                    {showBookButton && (
+                                                        <button
+                                                            onClick={() => handleBook(room)}
+                                                            className="px-3 py-1.5 bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold rounded-lg transition-all shadow-sm"
+                                                        >
+                                                            Réserver
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })
                                 )}
                             </div>
-                        </div>
-                    </div>
 
-                    {/* Total and Reserve Button */}
-                    <div className="mt-6 flex items-center justify-between p-4 bg-white rounded-xl border-2 border-sky-200 shadow-md">
-                        <div>
-                            <div className="text-sm text-gray-600 mb-1">
-                                Montant total du séjour:
+                            {/* Footer */}
+                            <div className="px-5 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                                <span className="text-xs text-gray-400">
+                                    {filteredRooms.length} chambre{filteredRooms.length > 1 ? "s" : ""} disponible{filteredRooms.length > 1 ? "s" : ""}
+                                </span>
+                                <button
+                                    onClick={handleViewDetail}
+                                    className="text-xs text-sky-600 hover:text-sky-800 font-semibold flex items-center gap-1"
+                                >
+                                    Fiche complète <ChevronRight size={12} />
+                                </button>
                             </div>
-                            <div className="text-3xl font-black text-gray-800">
-                                {formatPrice(displayPrice)} {pricing?.currency || 'DZD'}
-                            </div>
-                        </div>
-                        <button
-                            onClick={handleReservation}
-                            disabled={isLoadingPrice}
-                            className="px-8 py-4 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-bold text-lg rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            Réserver
-                            <ChevronRight size={20} />
-                        </button>
-                    </div>
+                        </>
+                    )}
                 </div>
-            </div>
+            )}
         </div>
     );
 }

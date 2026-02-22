@@ -1,5 +1,5 @@
-import React, {useState, useEffect, useMemo} from "react";
-import {NavLink} from "react-router";
+// src/components/Header.jsx
+import { useState, useEffect, useMemo } from "react";
 import {
     FaHome,
     FaHotel,
@@ -8,14 +8,15 @@ import {
     FaTimes,
     FaPhone,
     FaPassport,
-    FaChevronDown, FaPlane,
+    FaChevronDown,
+    FaPlane,
 } from "react-icons/fa";
 import HotelsPopup from "./HotelsPopup";
-import {LogIn, Plane} from "lucide-react";
-import {Link} from "react-router-dom";
-import {useCities} from "../custom-hooks/useHotelQueries";
+import { LogIn, Plane } from "lucide-react";
+import { NavLink, Link } from "react-router-dom";
+import { useCities } from "../custom-hooks/useHotelQueries";
 
-// Hotels data configuration - MOVED TO HEADER
+// Hotels data configuration
 const HOTELS_DATA = [
     {
         name: "Tunisie",
@@ -23,7 +24,8 @@ const HOTELS_DATA = [
         flag_url: "/images/flags/flag-tunisia.jpg",
         cities: [
             "Sousse", "Hammamet", "Monastir", "Tabarka", "Tunis", "Djerba",
-            "Nabeul", "Mahdia", "Gammarth", "Tozeur", "Bizerte", "Gabes", "kairouan", "Gafsa", "Sfax"
+            "Nabeul", "Mahdia", "Gammarth", "Tozeur", "Bizerte", "Gabes",
+            "kairouan", "Gafsa", "Sfax",
         ],
     },
     {
@@ -33,13 +35,23 @@ const HOTELS_DATA = [
         cities: [
             "Alger", "Annaba", "Constantine", "Skikda", "Oran", "Mostaganem",
             "Ain Timouchent", "Sétif", "Tebssa", "Béjaïa", "Tizi ouzou",
-            "Boumerdes", "Batna", "Eloued", "Bechar", "Setif", "Guelma", "El Oued", "Ain Temouchent"
+            "Boumerdes", "Batna", "Eloued", "Bechar", "Setif", "Guelma",
+            "El Oued", "Ain Temouchent",
         ],
     },
 ];
 
-// Separate component for menu items with submenu (not using NavLink)
-const MenuItemWithSubmenu = ({item, hoveredMenu, setHoveredMenu, isSubmenuVisible, setIsSubmenuVisible, enrichedCountries, citiesLoading, citiesError}) => {
+// Separate component for menu items with submenu
+const MenuItemWithSubmenu = ({
+                                 item,
+                                 hoveredMenu,
+                                 setHoveredMenu,
+                                 isSubmenuVisible,
+                                 setIsSubmenuVisible,
+                                 enrichedCountries,
+                                 citiesLoading,
+                                 citiesError,
+                             }) => {
     const Icon = item.icon;
     const isHovered = hoveredMenu === item.name;
 
@@ -85,11 +97,12 @@ const MenuItemWithSubmenu = ({item, hoveredMenu, setHoveredMenu, isSubmenuVisibl
                 </span>
                 <FaChevronDown
                     size={12}
-                    className={`transition-transform duration-200 ${isSubmenuVisible ? "transform rotate-180" : ""}`}
+                    className={`transition-transform duration-200 ${
+                        isSubmenuVisible ? "transform rotate-180" : ""
+                    }`}
                 />
                 {isHovered && (
-                    <span
-                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-sky-600 to-transparent animate-pulse"></span>
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-sky-600 to-transparent animate-pulse" />
                 )}
             </button>
 
@@ -105,7 +118,7 @@ const MenuItemWithSubmenu = ({item, hoveredMenu, setHoveredMenu, isSubmenuVisibl
 };
 
 // Regular NavLink Component
-const RegularMenuItem = ({item, hoveredMenu, setHoveredMenu}) => {
+const RegularMenuItem = ({ item, hoveredMenu, setHoveredMenu }) => {
     const Icon = item.icon;
     const isHovered = hoveredMenu === item.name;
 
@@ -114,12 +127,12 @@ const RegularMenuItem = ({item, hoveredMenu, setHoveredMenu}) => {
             to={item.path}
             onMouseEnter={() => setHoveredMenu(item.name)}
             onMouseLeave={() => setHoveredMenu(null)}
-            className={({isActive}) =>
+            className={({ isActive }) =>
                 `relative flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-300 ${
                     isActive ? "text-white" : "text-gray-700"
                 }`
             }
-            style={({isActive}) => ({
+            style={({ isActive }) => ({
                 transform:
                     isHovered && !isActive ? "translateY(-2px)" : "translateY(0)",
                 boxShadow: isActive
@@ -134,7 +147,7 @@ const RegularMenuItem = ({item, hoveredMenu, setHoveredMenu}) => {
                         : "transparent",
             })}
         >
-            {({isActive}) => (
+            {({ isActive }) => (
                 <>
                     <Icon
                         size={20}
@@ -159,8 +172,7 @@ const RegularMenuItem = ({item, hoveredMenu, setHoveredMenu}) => {
                         {item.name}
                     </span>
                     {isHovered && !isActive && (
-                        <span
-                            className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-sky-600 to-transparent animate-pulse"></span>
+                        <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-sky-600 to-transparent animate-pulse" />
                     )}
                 </>
             )}
@@ -175,66 +187,44 @@ function Header() {
     const [mobileHotelsOpen, setMobileHotelsOpen] = useState(false);
     const [isSubmenuVisible, setIsSubmenuVisible] = useState(false);
 
-    // NEW: Fetch cities from API using React Query
-    const {data: cities, isLoading: citiesLoading, isError: citiesError} = useCities();
+    const { data: cities, isLoading: citiesLoading, isError: citiesError } = useCities();
 
-    // NEW: Enrich countries with city data from API
     const enrichedCountries = useMemo(() => {
         if (!cities || cities.length === 0) return HOTELS_DATA;
 
         return HOTELS_DATA.map((country) => {
-            // Filter API cities that match the country's city names
-            // Extract only Id and Name properties
             const matchedCities = country.cities
                 .map((cityName) => {
-                    // Find matching city from API (case-insensitive, trim whitespace)
                     const apiCity = cities.find(
-                        (c) => c.Name.toLowerCase().trim() === cityName.toLowerCase().trim()
+                        (c) =>
+                            c.Name.toLowerCase().trim() ===
+                            cityName.toLowerCase().trim()
                     );
-
-                    // Return only Id and Name if found
-                    return apiCity ? {
-                        Id: apiCity.Id,
-                        Name: apiCity.Name
-                    } : null;
+                    return apiCity ? { Id: apiCity.Id, Name: apiCity.Name } : null;
                 })
-                .filter(Boolean); // Remove null/undefined values
+                .filter(Boolean);
 
-            return {
-                ...country,
-                citiesData: matchedCities,
-            };
+            return { ...country, citiesData: matchedCities };
         });
     }, [cities]);
 
     useEffect(() => {
-        const handleScroll = () => {
-            setIsScrolled(window.scrollY > 20);
-        };
+        const handleScroll = () => setIsScrolled(window.scrollY > 20);
         window.addEventListener("scroll", handleScroll);
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
     const handleCitySelect = (city) => {
         console.log("Selected city:", city);
-        // You can add navigation logic here
     };
 
     const menuItems = [
-        {name: "ACCUEIL", icon: FaHome, path: "/"},
-        {
-            name: "HOTELS",
-            icon: FaHotel,
-            hasSubmenu: true,
-        },
-        {
-            name: "VOYAGES ORGANISES",
-            icon: Plane,
-            path: "/voyages-organises",
-        },
-        {name: "E-VISA", icon: FaPassport, path: "/e-visa"},
-        {name: "OFFRES SPECIALES", icon: FaTags, path: "/offres-speciales"},
-        {name: "0770 93 25 63", icon: FaPhone, path: "/contact", isPhone: true},
+        { name: "ACCUEIL", icon: FaHome, path: "/" },
+        { name: "HOTELS", icon: FaHotel, hasSubmenu: true },
+        { name: "VOYAGES ORGANISES", icon: Plane, path: "/voyages-organises" },
+        { name: "E-VISA", icon: FaPassport, path: "/e-visa" },
+        { name: "OFFRES SPECIALES", icon: FaTags, path: "/offres-speciales" },
+        { name: "0770 93 25 63", icon: FaPhone, path: "/contact", isPhone: true },
     ];
 
     return (
@@ -248,44 +238,44 @@ function Header() {
             }}
         >
             <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center justify-between h-20">
-                    {/* Logo with 3D Effect */}
-                    <NavLink
-                        to="/"
-                        className="flex items-center space-x-4 cursor-pointer group"
-                    >
-                        <div
-                            className="relative transform transition-all duration-300 hover:scale-110"
-                            style={{
-                                filter: "drop-shadow(0 4px 6px rgba(2, 132, 199, 0.3))",
-                            }}
+
+                {/* ✅ ONLY CHANGE: flex items-center (no justify-between) */}
+                <div className="flex items-center h-20">
+
+                    {/* ✅ COLUMN 1 — flex-1 justify-start → Logo extreme LEFT */}
+                    <div className="flex-1 flex justify-start">
+                        <NavLink
+                            to="/"
+                            className="flex items-center space-x-4 cursor-pointer group"
                         >
-                            <FaPlane
-                                className="text-3xl text-sky-600 transform transition-transform duration-300 group-hover:translate-x-2 group-hover:rotate-12"/>
                             <div
-                                className="absolute -bottom-1 -right-1 w-3 h-3 bg-orange-500 rounded-full animate-pulse"
+                                className="relative transform transition-all duration-300 hover:scale-110"
                                 style={{
-                                    boxShadow: "0 0 10px rgba(249, 115, 22, 0.6)",
-                                }}
-                            ></div>
-                        </div>
-                        <div>
-                            <h1
-                                className="text-2xl font-bold bg-gradient-to-r from-sky-600 via-sky-700 to-sky-800 bg-clip-text text-transparent"
-                                style={{
-                                    textShadow: "0 2px 4px rgba(2, 132, 199, 0.1)",
+                                    filter: "drop-shadow(0 4px 6px rgba(2, 132, 199, 0.3))",
                                 }}
                             >
-                                Allez<span className="text-[#f97316]">GO</span>
-                            </h1>
-                            <p className="text-xs text-gray-500 -mt-1 font-medium">
-                                Travel Agency
-                            </p>
-                        </div>
-                    </NavLink>
+                                <FaPlane className="text-3xl text-sky-600 transform transition-transform duration-300 group-hover:translate-x-2 group-hover:rotate-12" />
+                                <div
+                                    className="absolute -bottom-1 -right-1 w-3 h-3 bg-orange-500 rounded-full animate-pulse"
+                                    style={{ boxShadow: "0 0 10px rgba(249, 115, 22, 0.6)" }}
+                                />
+                            </div>
+                            <div>
+                                <h1
+                                    className="text-2xl font-bold bg-gradient-to-r from-sky-600 via-sky-700 to-sky-800 bg-clip-text text-transparent"
+                                    style={{ textShadow: "0 2px 4px rgba(2, 132, 199, 0.1)" }}
+                                >
+                                    Allez<span className="text-[#f97316]">GO</span>
+                                </h1>
+                                <p className="text-xs text-gray-500 -mt-1 font-medium">
+                                    Travel Agency
+                                </p>
+                            </div>
+                        </NavLink>
+                    </div>
 
-                    {/* Desktop Navigation with 3D Effects */}
-                    <nav className="hidden md:flex md:gap-6 items-center space-x-1">
+                    {/* ✅ COLUMN 2 — flex-1 justify-center → Nav+Phone perfectly CENTERED */}
+                    <nav className="flex-2 hidden md:flex justify-center items-center gap-5">
                         {menuItems.map((item) =>
                             item.hasSubmenu ? (
                                 <MenuItemWithSubmenu
@@ -310,49 +300,54 @@ function Header() {
                         )}
                     </nav>
 
-                    {/* CTA Button - Desktop with 3D Effect */}
-                    <Link
-                        to="/signin"
-                        className="hidden md:block relative px-6 py-2.5 bg-gradient-to-r from-red-500 via-red-600 to-red-700 text-white font-semibold rounded-lg overflow-hidden group"
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.boxShadow =
-                                "0 8px 25px rgba(249, 115, 22, 0.5), inset 0 -2px 4px rgba(0, 0, 0, 0.2)";
-                            e.currentTarget.style.transform = "translateY(-2px)";
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.boxShadow =
-                                "0 6px 20px rgba(249, 115, 22, 0.4), inset 0 -2px 4px rgba(0, 0, 0, 0.2)";
-                            e.currentTarget.style.transform = "translateY(0)";
-                        }}
-                    >
-                        <span className="flex justify-center items-center gap-2 relative z-10">
-                            <LogIn size={26} strokeWidth={2}/>
-                            Connecter
-                        </span>
-                        <div
-                            className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-20 transform -skew-x-12 group-hover:translate-x-full transition-all duration-700"></div>
-                    </Link>
+                    {/* ✅ COLUMN 3 — flex-1 justify-end → Connecter extreme RIGHT */}
+                    <div className="flex-1 flex justify-end items-center">
 
-                    {/* Mobile Menu Button */}
-                    <button
-                        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                        className="md:hidden text-gray-700 hover:text-sky-600 transition-all p-2 rounded-lg hover:bg-sky-50"
-                        style={{
-                            boxShadow: isMobileMenuOpen
-                                ? "0 4px 12px rgba(2, 132, 199, 0.3)"
-                                : "none",
-                            transform: isMobileMenuOpen ? "scale(1.1)" : "scale(1)",
-                        }}
-                    >
-                        {isMobileMenuOpen ? (
-                            <FaTimes className="text-2xl"/>
-                        ) : (
-                            <FaBars className="text-2xl"/>
-                        )}
-                    </button>
+                        {/* CTA Button - Desktop */}
+                        <Link
+                            to="/sign-in"
+                            className="hidden md:block relative px-6 py-2.5 bg-gradient-to-r from-red-500 via-red-600 to-red-700 text-white font-semibold rounded-lg overflow-hidden group"
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.boxShadow =
+                                    "0 8px 25px rgba(249, 115, 22, 0.5), inset 0 -2px 4px rgba(0, 0, 0, 0.2)";
+                                e.currentTarget.style.transform = "translateY(-2px)";
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.boxShadow =
+                                    "0 6px 20px rgba(249, 115, 22, 0.4), inset 0 -2px 4px rgba(0, 0, 0, 0.2)";
+                                e.currentTarget.style.transform = "translateY(0)";
+                            }}
+                        >
+                            <span className="flex justify-center items-center gap-2 relative z-10">
+                                <LogIn size={26} strokeWidth={2} />
+                                Connecter
+                            </span>
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-20 transform -skew-x-12 group-hover:translate-x-full transition-all duration-700" />
+                        </Link>
+
+                        {/* Mobile Menu Button */}
+                        <button
+                            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                            className="md:hidden text-gray-700 hover:text-sky-600 transition-all p-2 rounded-lg hover:bg-sky-50"
+                            style={{
+                                boxShadow: isMobileMenuOpen
+                                    ? "0 4px 12px rgba(2, 132, 199, 0.3)"
+                                    : "none",
+                                transform: isMobileMenuOpen ? "scale(1.1)" : "scale(1)",
+                            }}
+                        >
+                            {isMobileMenuOpen ? (
+                                <FaTimes className="text-2xl" />
+                            ) : (
+                                <FaBars className="text-2xl" />
+                            )}
+                        </button>
+
+                    </div>
+
                 </div>
 
-                {/* Mobile Navigation */}
+                {/* Mobile Navigation — UNTOUCHED */}
                 <div
                     className={`md:hidden transition-all duration-300 ease-in-out overflow-hidden ${
                         isMobileMenuOpen
@@ -364,18 +359,15 @@ function Header() {
                         {menuItems.map((item) => {
                             const Icon = item.icon;
 
-                            // For items with submenu
                             if (item.hasSubmenu) {
                                 return (
                                     <div key={item.name} className="flex flex-col">
                                         <button
                                             type="button"
-                                            onClick={() => {
-                                                setMobileHotelsOpen(!mobileHotelsOpen);
-                                            }}
+                                            onClick={() => setMobileHotelsOpen(!mobileHotelsOpen)}
                                             className="flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-300 text-gray-700 hover:bg-sky-50"
                                         >
-                                            <Icon className="text-xl"/>
+                                            <Icon className="text-xl" />
                                             <span className="font-medium">{item.name}</span>
                                             <FaChevronDown
                                                 size={14}
@@ -385,10 +377,11 @@ function Header() {
                                             />
                                         </button>
 
-                                        {/* Mobile Submenu - Using enrichedCountries */}
                                         <div
                                             className={`overflow-y-auto transition-all duration-300 ${
-                                                mobileHotelsOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+                                                mobileHotelsOpen
+                                                    ? "max-h-[500px] opacity-100"
+                                                    : "max-h-0 opacity-0"
                                             }`}
                                         >
                                             <div className="pl-4 pr-2 py-2 space-y-1">
@@ -398,11 +391,12 @@ function Header() {
                                                             <span>{country.icon}</span>
                                                             {country.name}
                                                         </h4>
-                                                        {country.citiesData && country.citiesData.length > 0 ? (
+                                                        {country.citiesData &&
+                                                        country.citiesData.length > 0 ? (
                                                             <div className="grid grid-cols-2 gap-1">
                                                                 {country.citiesData.map((city) => (
                                                                     <Link
-                                                                        to={`/hotels/city/${city.Id}`}
+                                                                        to={`/hotels/${city.Id}`}
                                                                         key={city.Id}
                                                                         onClick={() => {
                                                                             handleCitySelect(city);
@@ -417,7 +411,9 @@ function Header() {
                                                                 ))}
                                                             </div>
                                                         ) : (
-                                                            <p className="text-xs text-gray-500 px-2">Chargement...</p>
+                                                            <p className="text-xs text-gray-500 px-2">
+                                                                Chargement...
+                                                            </p>
                                                         )}
                                                     </div>
                                                 ))}
@@ -427,20 +423,17 @@ function Header() {
                                 );
                             }
 
-                            // Regular menu items
                             return (
                                 <NavLink
                                     key={item.name}
                                     to={item.path}
-                                    onClick={() => {
-                                        setIsMobileMenuOpen(false);
-                                    }}
-                                    className={({isActive}) =>
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                    className={({ isActive }) =>
                                         `flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-300 ${
                                             isActive ? "text-white" : "text-gray-700"
                                         }`
                                     }
-                                    style={({isActive}) => ({
+                                    style={({ isActive }) => ({
                                         background: isActive
                                             ? "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)"
                                             : "transparent",
@@ -449,26 +442,28 @@ function Header() {
                                             : "none",
                                     })}
                                 >
-                                    <Icon className="text-xl"/>
+                                    <Icon className="text-xl" />
                                     <span className="font-medium">{item.name}</span>
                                 </NavLink>
                             );
                         })}
-                        <Link to="/signin"
-                              className="relative flex justify-center items-center gap-2 bg-gradient-to-r from-red-500 via-red-600 to-red-700 px-4 py-3 rounded-lg font-semibold text-white mt-2 overflow-hidden group"
-                              style={{
-                                  boxShadow:
-                                      "0 6px 20px rgba(249, 115, 22, 0.4), inset 0 -2px 4px rgba(0, 0, 0, 0.2)",
-                              }}
-                              onClick={() => {
-                                  setIsMobileMenuOpen(false);
-                              }}
+
+                        {/* Mobile CTA */}
+                        <Link
+                            to="/sign-in"
+                            className="relative flex justify-center items-center gap-2 bg-gradient-to-r from-red-500 via-red-600 to-red-700 px-4 py-3 rounded-lg font-semibold text-white mt-2 overflow-hidden group"
+                            style={{
+                                boxShadow:
+                                    "0 6px 20px rgba(249, 115, 22, 0.4), inset 0 -2px 4px rgba(0, 0, 0, 0.2)",
+                            }}
+                            onClick={() => setIsMobileMenuOpen(false)}
                         >
                             <span className="relative z-10">Connecter</span>
-                            <LogIn size={20} strokeWidth={2}/>
+                            <LogIn size={20} strokeWidth={2} />
                         </Link>
                     </nav>
                 </div>
+
             </div>
         </header>
     );

@@ -1,128 +1,216 @@
-import { useState, useEffect } from "react";
+// src/pages/HotelDetails.jsx
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
-    MapPin,
-    Star,
-    Wifi,
-    Coffee,
-    Waves,
-    Car,
-    Dumbbell,
-    Utensils,
-    ChevronLeft,
-    X,
-    Tag,
-    Users,
-    Eye,
-    Building2,
-    Info,
-    Wind,
-    Sparkles,
-    UtensilsCrossed,
-    Shield,
-    Clock,
-    Award,
-    Navigation,
-    Mountain,
-    Home,
-    Receipt,
-    CheckCircle2,
-    Calendar,
-    AlertCircle,
+    MapPin, Star, Wifi, Coffee, Waves, Car, Dumbbell, Utensils,
+    ChevronLeft, X, Tag, Users, Eye, Building2, Info, Wind,
+    Sparkles, UtensilsCrossed, Shield, Clock, Award, Navigation,
+    Mountain, Home, Receipt, CheckCircle2, Calendar, AlertCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import apiClient from "../services/ApiClient";
+import DateRangePicker from "../components/booking/DateRangePicker.jsx";
+
+// ── Module-level constants ────────────────────────────────────────────────────
+
+const getDefaultCheckIn = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+};
+
+const getDefaultCheckOut = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 2);
+    d.setHours(0, 0, 0, 0);
+    return d;
+};
+
+// ✅ Convert Date object → "YYYY-MM-DD" string for API calls
+const toDateString = (date) =>
+    date instanceof Date ? date.toISOString().split("T")[0] : null;
+
+// ✅ Convert "YYYY-MM-DD" string → Date object for DateRangePicker
+const toDateObject = (str) => {
+    if (!str) return null;
+    const d = new Date(str);
+    d.setHours(0, 0, 0, 0);
+    return isNaN(d.getTime()) ? null : d;
+};
+
+const commonAmenities = [
+    { icon: Wifi,            label: "WiFi Gratuit" },
+    { icon: Waves,           label: "Piscine" },
+    { icon: Car,             label: "Parking Gratuit" },
+    { icon: Dumbbell,        label: "Salle de Sport" },
+    { icon: UtensilsCrossed, label: "Restaurant" },
+    { icon: Utensils,        label: "Service en Chambre" },
+    { icon: Wind,            label: "Climatisation" },
+    { icon: Sparkles,        label: "Spa & Wellness" },
+    { icon: Coffee,          label: "Bar & Lounge" },
+    { icon: Shield,          label: "Sécurité 24/7" },
+];
+
+const tabs = [
+    { id: "overview",  label: "Aperçu",      icon: Info },
+    { id: "location",  label: "Localisation", icon: MapPin },
+    { id: "gallery",   label: "Galerie",      icon: Eye },
+    { id: "amenities", label: "Équipements",  icon: Building2 },
+];
+
+const BOOKING_ADVANTAGES = [
+    { icon: Award,    title: "Meilleur Prix Garanti", desc: "Nous garantissons le meilleur tarif du marché" },
+    { icon: Clock,    title: "Annulation Flexible",   desc: "Modifiez ou annulez facilement" },
+    { icon: Sparkles, title: "Privilèges Exclusifs",  desc: "Surclassement et services premium" },
+    { icon: Shield,   title: "Support 24/7",          desc: "Assistance disponible à tout moment" },
+];
+
+const EXTRA_SERVICES = [
+    "Conciergerie disponible 24h/24",
+    "Service de blanchisserie",
+    "Transfert aéroport (sur demande)",
+    "Organisation d'excursions",
+];
+
+// ✅ childAges in DEFAULT_ROOM
+const DEFAULT_ROOM = { adults: 2, children: 0, childAges: [], selectedRoomType: "" };
+
+// ✅ Normalize Album items that may be raw strings
+const normalizeImage = (img) =>
+    typeof img === "string" ? { Url: img, Alt: "" } : img;
+
+// ✅ childAges parsed and carried forward
+function parseRoomsParam(searchParams) {
+    const roomsParam = searchParams.get("rooms");
+    if (!roomsParam) return [{ ...DEFAULT_ROOM }];
+    try {
+        return JSON.parse(decodeURIComponent(roomsParam)).map(r => ({
+            adults:           r.adults    || 2,
+            children:         r.children  || 0,
+            childAges:        Array.isArray(r.childAges) ? r.childAges : [],
+            selectedRoomType: "",
+        }));
+    } catch (e) {
+        if (import.meta.env.DEV) console.error("Error parsing rooms:", e);
+        return [{ ...DEFAULT_ROOM }];
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 function HotelDetails() {
-    const params = useParams();
-    const hotelId = params.hotelId || params.id;
+    const params   = useParams();
+    const hotelId  = params.hotelId || params.id;
     const navigate = useNavigate();
-    const [searchParams, setSearchParams] = useSearchParams();
+    const [searchParams] = useSearchParams();
 
-    const [activeTab, setActiveTab] = useState("overview");
+    const errorToastFiredRef = useRef(false);
+
+    const [activeTab,          setActiveTab]          = useState("overview");
     const [selectedImageIndex, setSelectedImageIndex] = useState(null);
-    const [mainImageIndex, setMainImageIndex] = useState(0);
+    const [mainImageIndex,     setMainImageIndex]     = useState(0);
 
-    // Booking State
-    const [selectedBoarding, setSelectedBoarding] = useState("BB"); // Default: Petit Déjeuner
-    const [checkInDate, setCheckInDate] = useState("");
-    const [checkOutDate, setCheckOutDate] = useState("");
-    const [rooms, setRooms] = useState([
-        { adults: 2, children: 0, selectedRoomType: "" }
-    ]);
-    const [availableRooms, setAvailableRooms] = useState([]);
+    // ✅ range holds Date objects — exactly what DateRangePicker expects
+    const [range, setRange] = useState(() => {
+        const fromStr = searchParams.get("checkin");
+        const toStr   = searchParams.get("checkout");
+        return {
+            from: toDateObject(fromStr) ?? getDefaultCheckIn(),
+            to:   toDateObject(toStr)   ?? getDefaultCheckOut(),
+        };
+    });
+
+    const [rooms,            setRooms]            = useState(() => parseRoomsParam(searchParams));
+    const [selectedBoarding, setSelectedBoarding] = useState("BB");
+    const [availableRooms,   setAvailableRooms]   = useState([]);
     const [isSearchingRooms, setIsSearchingRooms] = useState(false);
-    const [totalPrice, setTotalPrice] = useState(0);
-    const [hasSearched, setHasSearched] = useState(false);
+    const [hasSearched,      setHasSearched]      = useState(false);
 
-    // Initialize dates from URL params or set defaults
-    useEffect(() => {
-        const checkin = searchParams.get("checkin");
-        const checkout = searchParams.get("checkout");
-        const roomsParam = searchParams.get("rooms");
+    // ✅ Derive string versions for API calls — single source of truth is range
+    const checkInDate  = useMemo(() => toDateString(range.from), [range.from]);
+    const checkOutDate = useMemo(() => toDateString(range.to),   [range.to]);
 
-        if (checkin) setCheckInDate(checkin);
-        else setCheckInDate(getDefaultCheckIn());
+    // ✅ nights derived from Date objects directly
+    const nights = useMemo(() => {
+        if (!range.from || !range.to) return 1;
+        const diff = range.to - range.from;
+        return Math.max(1, Math.round(diff / (1000 * 60 * 60 * 24)));
+    }, [range.from, range.to]);
 
-        if (checkout) setCheckOutDate(checkout);
-        else setCheckOutDate(getDefaultCheckOut());
+    // ✅ totalPrice × nights
+    const totalPrice = useMemo(() =>
+            rooms.reduce((total, room) => {
+                if (!room.selectedRoomType) return total;
+                const found = availableRooms.find(r => r.id === room.selectedRoomType);
+                return found ? total + (found.price * nights) : total;
+            }, 0),
+        [rooms, availableRooms, nights]
+    );
 
-        if (roomsParam) {
-            try {
-                const parsedRooms = JSON.parse(decodeURIComponent(roomsParam));
-                setRooms(parsedRooms.map(r => ({
-                    adults: r.adults || 2,
-                    children: r.children || 0,
-                    selectedRoomType: ""
-                })));
-            } catch (e) {
-                console.error("Error parsing rooms:", e);
-            }
-        }
-    }, []);
+    // ✅ Single pass for guest summary
+    const { totalAdults, totalChildren } = useMemo(() => ({
+        totalAdults:   rooms.reduce((acc, r) => acc + r.adults,   0),
+        totalChildren: rooms.reduce((acc, r) => acc + r.children, 0),
+    }), [rooms]);
 
-    // Helper functions for default dates
-    const getDefaultCheckIn = () => {
-        const today = new Date();
-        today.setDate(today.getDate() + 1);
-        return today.toISOString().split('T')[0];
-    };
+    // ── Data Fetching ─────────────────────────────────────────────────────────
 
-    const getDefaultCheckOut = () => {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 2);
-        return tomorrow.toISOString().split('T')[0];
-    };
-
-    // Fetch hotel details
-    const {
-        data: hotelData,
-        isLoading,
-        isError,
-        error,
-    } = useQuery({
+    const { data: hotelData, isLoading, isError, error } = useQuery({
         queryKey: ["hotelDetail", hotelId],
-        queryFn: async () => {
+        queryFn:  async () => {
             const response = await apiClient.getHotelDetail(Number(hotelId));
-            if (response.errorMessage && response.errorMessage.length > 0) {
+            if (response.errorMessage?.length > 0) {
                 throw new Error(response.errorMessage.join(", "));
             }
             return response.hotelDetail;
         },
-        enabled: !!hotelId && !isNaN(Number(hotelId)),
+        enabled:   !!hotelId && !isNaN(Number(hotelId)),
         staleTime: 5 * 60 * 1000,
-        retry: 2,
+        retry:     2,
     });
 
-    // Search for available rooms and prices
-    const handleSearchRooms = async () => {
+    useEffect(() => {
+        if (isError && !errorToastFiredRef.current) {
+            errorToastFiredRef.current = true;
+            toast.error(error?.message || "Échec du chargement des détails de l'hôtel");
+        }
+        if (!isError) errorToastFiredRef.current = false;
+    }, [isError, error]);
+
+    // ✅ allImages normalizes mixed string/object Album entries
+    const allImages = useMemo(() => {
+        if (!hotelData) return [];
+        const base = hotelData.Image
+            ? [{ Url: hotelData.Image, Alt: hotelData.Name }]
+            : [];
+        return [...base, ...(hotelData.Album || []).map(normalizeImage)];
+    }, [hotelData]);
+
+    // ── Handlers ──────────────────────────────────────────────────────────────
+
+    const resetSearchState = useCallback(() => {
+        setHasSearched(false);
+        setAvailableRooms([]);
+    }, []);
+
+    // ✅ setRange passed directly to DateRangePicker — resets search on change
+    const handleSetRange = useCallback((newRange) => {
+        setRange(newRange);
+        // Only reset if both dates change (i.e. a full new selection)
+        if (newRange.from && newRange.to) {
+            resetSearchState();
+        }
+    }, [resetSearchState]);
+
+    // ✅ childAges included — uses derived string dates
+    const handleSearchRooms = useCallback(async () => {
         if (!checkInDate || !checkOutDate) {
             toast.error("Veuillez sélectionner les dates de séjour");
             return;
         }
-
-        if (new Date(checkInDate) >= new Date(checkOutDate)) {
+        if (range.from >= range.to) {
             toast.error("La date de départ doit être après la date d'arrivée");
             return;
         }
@@ -131,129 +219,108 @@ function HotelDetails() {
         setHasSearched(false);
 
         try {
-            // Call API to get room availability and prices
             const response = await apiClient.searchRoomAvailability({
-                hotelId: Number(hotelId),
-                checkIn: checkInDate,
-                checkOut: checkOutDate,
+                hotelId:      Number(hotelId),
+                checkIn:      checkInDate,
+                checkOut:     checkOutDate,
+                boardingType: selectedBoarding,
                 rooms: rooms.map(r => ({
-                    adults: r.adults,
-                    children: r.children
+                    adults:    r.adults,
+                    children:  r.children,
+                    childAges: Array.isArray(r.childAges) ? r.childAges : [],
                 })),
-                boardingType: selectedBoarding
             });
 
-            if (response.errorMessage && response.errorMessage.length > 0) {
+            if (response.errorMessage?.length > 0) {
                 toast.error(response.errorMessage.join(", "));
                 setAvailableRooms([]);
             } else {
                 setAvailableRooms(response.rooms || []);
                 setHasSearched(true);
-                if (response.rooms && response.rooms.length > 0) {
+                if (response.rooms?.length > 0) {
                     toast.success(`${response.rooms.length} option(s) de chambre disponible(s)!`);
                 } else {
                     toast.error("Aucune chambre disponible pour ces critères");
                 }
             }
-        } catch (error) {
-            console.error("Room search error:", error);
+        } catch (err) {
+            if (import.meta.env.DEV) console.error("Room search error:", err);
             toast.error("Erreur lors de la recherche de chambres");
             setAvailableRooms([]);
             setHasSearched(true);
         } finally {
             setIsSearchingRooms(false);
         }
-    };
+    }, [checkInDate, checkOutDate, range, hotelId, rooms, selectedBoarding]);
 
-    // Calculate total price when room selections change
-    useEffect(() => {
-        let total = 0;
-        rooms.forEach((room) => {
-            if (room.selectedRoomType) {
-                const selectedRoom = availableRooms.find(r => r.id === room.selectedRoomType);
-                if (selectedRoom) {
-                    total += selectedRoom.price;
-                }
-            }
-        });
-        setTotalPrice(total);
-    }, [rooms, availableRooms]);
-
-    // Add/Remove rooms
-    const addRoom = () => {
-        if (rooms.length < 5) {
-            setRooms([...rooms, { adults: 2, children: 0, selectedRoomType: "" }]);
-        } else {
-            toast.error("Maximum 5 chambres par réservation");
-        }
-    };
-
-    const removeRoom = (index) => {
-        if (rooms.length > 1) {
-            setRooms(rooms.filter((_, i) => i !== index));
-        } else {
-            toast.error("Au moins une chambre est requise");
-        }
-    };
-
-    // Update room configuration
-    const updateRoom = (index, field, value) => {
-        const updatedRooms = [...rooms];
-        updatedRooms[index][field] = value;
-        setRooms(updatedRooms);
-    };
-
-    // Handle reservation
-    const handleReserve = () => {
-        // Validate all rooms have selections
-        const allRoomsSelected = rooms.every(room => room.selectedRoomType);
-
-        if (!allRoomsSelected) {
+    const handleReserve = useCallback(() => {
+        if (!rooms.every(room => room.selectedRoomType)) {
             toast.error("Veuillez sélectionner un type de chambre pour chaque chambre");
             return;
         }
-
         if (totalPrice === 0) {
             toast.error("Veuillez rechercher les disponibilités d'abord");
             return;
         }
 
-        // Prepare booking data
         const bookingData = {
-            hotelId: Number(hotelId),
-            hotelName: hotelData?.Name,
-            checkIn: checkInDate,
-            checkOut: checkOutDate,
+            hotelId:      Number(hotelId),
+            hotelName:    hotelData?.Name,
+            checkIn:      checkInDate,
+            checkOut:     checkOutDate,
+            nights,
             boardingType: selectedBoarding,
-            rooms: rooms.map((room) => {
+            rooms: rooms.map(room => {
                 const selectedRoom = availableRooms.find(r => r.id === room.selectedRoomType);
                 return {
-                    roomType: selectedRoom?.name,
-                    roomId: selectedRoom?.id,
-                    adults: room.adults,
-                    children: room.children,
-                    price: selectedRoom?.price
+                    roomType:  selectedRoom?.name,
+                    roomId:    selectedRoom?.id,
+                    adults:    room.adults,
+                    children:  room.children,
+                    childAges: room.childAges ?? [],
+                    price:     selectedRoom?.price,
+                    total:     selectedRoom ? selectedRoom.price * nights : 0,
                 };
             }),
-            totalPrice: totalPrice,
-            currency: "DZD"
+            totalPrice,
+            currency: "DZD",
         };
 
-        // Navigate to booking/payment page
-        navigate(`/booking/${hotelId}`, {
-            state: { bookingData, hotel: hotelData }
-        });
+        navigate(`/booking/${hotelId}`, { state: { bookingData, hotel: hotelData } });
         toast.success("Redirection vers la réservation...");
-    };
+    }, [rooms, totalPrice, hotelId, hotelData, checkInDate, checkOutDate, selectedBoarding, availableRooms, navigate, nights]);
 
-    // Missing hotelId
+    const addRoom = useCallback(() => {
+        if (rooms.length >= 5) {
+            toast.error("Maximum 5 chambres par réservation");
+            return;
+        }
+        setRooms(prev => [...prev, { ...DEFAULT_ROOM }]);
+        resetSearchState();
+    }, [rooms.length, resetSearchState]);
+
+    const removeRoom = useCallback((index) => {
+        if (rooms.length <= 1) {
+            toast.error("Au moins une chambre est requise");
+            return;
+        }
+        setRooms(prev => prev.filter((_, i) => i !== index));
+        resetSearchState();
+    }, [rooms.length, resetSearchState]);
+
+    const updateRoom = useCallback((index, field, value) => {
+        setRooms(prev => prev.map((room, i) =>
+            i === index ? { ...room, [field]: value } : room
+        ));
+    }, []);
+
+    // ── Guards ────────────────────────────────────────────────────────────────
+
     if (!hotelId) {
         return (
             <section className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-sky-100 flex items-center justify-center p-4">
                 <div className="text-center p-8 bg-white rounded-2xl shadow-xl max-w-md">
-                    <h2 className="text-2xl font-bold text-gray-800 mb-4">
-                        URL Invalide
-                    </h2>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-4">URL Invalide</h2>
                     <p className="text-gray-600 mb-6">
                         Aucun identifiant d'hôtel trouvé dans l'URL. Veuillez sélectionner un hôtel depuis la liste.
                     </p>
@@ -268,17 +335,16 @@ function HotelDetails() {
         );
     }
 
-    // Loading state
     if (isLoading) {
         return (
             <section className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-sky-100">
                 <div className="max-w-7xl mx-auto px-4 py-8">
                     <div className="animate-pulse space-y-6">
-                        <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
-                        <div className="h-[500px] bg-gray-200 rounded-2xl mb-8"></div>
+                        <div className="h-8 bg-gray-200 rounded w-1/4 mb-6" />
+                        <div className="h-[500px] bg-gray-200 rounded-2xl mb-8" />
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                            <div className="lg:col-span-2 h-96 bg-gray-200 rounded-2xl"></div>
-                            <div className="h-96 bg-gray-200 rounded-2xl"></div>
+                            <div className="lg:col-span-2 h-96 bg-gray-200 rounded-2xl" />
+                            <div className="h-96 bg-gray-200 rounded-2xl" />
                         </div>
                     </div>
                 </div>
@@ -286,15 +352,12 @@ function HotelDetails() {
         );
     }
 
-    // Error state
     if (isError || !hotelData) {
-        toast.error(error?.message || "Échec du chargement des détails de l'hôtel");
         return (
             <section className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-sky-100 flex items-center justify-center p-4">
                 <div className="text-center p-8 bg-white rounded-2xl shadow-xl max-w-md">
-                    <h2 className="text-2xl font-bold text-gray-800 mb-4">
-                        Hôtel Non Trouvé
-                    </h2>
+                    <AlertCircle size={48} className="mx-auto text-orange-400 mb-4" />
+                    <h2 className="text-2xl font-bold text-gray-800 mb-4">Hôtel Non Trouvé</h2>
                     <p className="text-gray-600 mb-6">
                         {error?.message || "Impossible de charger les informations de l'hôtel"}
                     </p>
@@ -309,55 +372,12 @@ function HotelDetails() {
         );
     }
 
-    const {
-        Name,
-        Category,
-        City,
-        Email,
-        Phone: HotelPhone,
-        Vues,
-        Type,
-        Image,
-        Album,
-        Tag: Tags,
-        Boarding,
-        Theme,
-    } = hotelData;
+    const { Name, Category, City, Vues, Type, Tag: Tags, Boarding, Theme } = hotelData;
 
-    // Use Image property as main image, then add Album images
-    const allImages = Image
-        ? [{ Url: Image, Alt: Name }, ...(Album || [])]
-        : (Album || []);
-
-    const tabs = [
-        { id: "overview", label: "Aperçu", icon: Info },
-        { id: "location", label: "Localisation", icon: MapPin },
-        { id: "gallery", label: "Galerie", icon: Eye },
-        { id: "amenities", label: "Équipements", icon: Building2 },
-    ];
-
-    // Enhanced amenities with French labels
-    const commonAmenities = [
-        { icon: Wifi, label: "WiFi Gratuit" },
-        { icon: Waves, label: "Piscine" },
-        { icon: Car, label: "Parking Gratuit" },
-        { icon: Dumbbell, label: "Salle de Sport" },
-        { icon: UtensilsCrossed, label: "Restaurant" },
-        { icon: Utensils, label: "Service en Chambre" },
-        { icon: Wind, label: "Climatisation" },
-        { icon: Sparkles, label: "Spa & Wellness" },
-        { icon: Coffee, label: "Bar & Lounge" },
-        { icon: Shield, label: "Sécurité 24/7" },
-    ];
-
-    // Get boarding type label
-    const getBoardingLabel = (code) => {
-        const boarding = Boarding?.find(b => b.Code === code);
-        return boarding?.Name || code;
-    };
-
+    // ── Render ────────────────────────────────────────────────────────────────
     return (
-        <section className="min-h-screen w-8/9 mx-auto bg-gradient-to-br from-sky-50 via-blue-50 to-sky-100">
+        <section className="min-h-screen w-full mx-auto bg-gradient-to-br from-sky-50 via-blue-50 to-sky-100">
+
             {/* Image Lightbox Modal */}
             {selectedImageIndex !== null && (
                 <div
@@ -376,12 +396,9 @@ function HotelDetails() {
                         className="max-w-full max-h-full object-contain"
                         onClick={(e) => e.stopPropagation()}
                     />
-                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
                         <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedImageIndex(Math.max(0, selectedImageIndex - 1));
-                            }}
+                            onClick={(e) => { e.stopPropagation(); setSelectedImageIndex(prev => Math.max(0, prev - 1)); }}
                             disabled={selectedImageIndex === 0}
                             className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg disabled:opacity-50"
                         >
@@ -391,10 +408,7 @@ function HotelDetails() {
                             {selectedImageIndex + 1} / {allImages.length}
                         </span>
                         <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedImageIndex(Math.min(allImages.length - 1, selectedImageIndex + 1));
-                            }}
+                            onClick={(e) => { e.stopPropagation(); setSelectedImageIndex(prev => Math.min(allImages.length - 1, prev + 1)); }}
                             disabled={selectedImageIndex === allImages.length - 1}
                             className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg disabled:opacity-50"
                         >
@@ -419,13 +433,12 @@ function HotelDetails() {
                 {/* Hero Section */}
                 <div className="relative rounded-2xl overflow-hidden shadow-2xl mb-8 h-[350px] sm:h-[450px] lg:h-[550px]">
                     <img
-                        src={allImages[mainImageIndex]?.Url || Image}
+                        src={allImages[mainImageIndex]?.Url || hotelData.Image}
                         alt={allImages[mainImageIndex]?.Alt || Name}
                         className="w-full h-full object-cover"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"></div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
 
-                    {/* Hotel Info Overlay */}
                     <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8 lg:p-10 text-white">
                         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
                             <div className="flex-1">
@@ -433,12 +446,7 @@ function HotelDetails() {
                                     {Category?.Star && (
                                         <div className="flex items-center gap-1 bg-orange-500 px-4 py-2 rounded-full shadow-lg">
                                             {[...Array(Category.Star)].map((_, i) => (
-                                                <Star
-                                                    key={i}
-                                                    size={18}
-                                                    fill="currentColor"
-                                                    className="text-white"
-                                                />
+                                                <Star key={i} size={18} fill="currentColor" className="text-white" />
                                             ))}
                                         </div>
                                     )}
@@ -448,20 +456,17 @@ function HotelDetails() {
                                         </span>
                                     )}
                                 </div>
-                                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4 drop-shadow-2xl">
-                                    {Name}
-                                </h1>
+                                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4 drop-shadow-2xl">{Name}</h1>
                                 <div className="flex items-center gap-2 text-base sm:text-lg">
                                     <MapPin size={22} className="flex-shrink-0" />
                                     <span className="font-medium">
-                                        {City?.Name}, {City?.Country}
+                                        {City?.Name}{City?.Country?.Name ? `, ${City.Country.Name}` : ""}
                                     </span>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Image Navigation Dots */}
                     {allImages.length > 1 && (
                         <div className="absolute bottom-32 right-6 flex flex-col gap-2">
                             {allImages.slice(0, 6).map((_, index) => (
@@ -491,7 +496,6 @@ function HotelDetails() {
                             <p className="text-lg font-bold text-gray-800">{Category.Title}</p>
                         </div>
                     )}
-
                     {Type && (
                         <div className="bg-white rounded-xl p-4 shadow-lg border-2 border-sky-100 hover:shadow-xl transition-shadow">
                             <div className="flex items-center gap-3 mb-2">
@@ -501,8 +505,7 @@ function HotelDetails() {
                             <p className="text-lg font-bold text-gray-800">{Type}</p>
                         </div>
                     )}
-
-                    {Vues && Vues.length > 0 && (
+                    {Vues?.length > 0 && (
                         <div className="bg-white rounded-xl p-4 shadow-lg border-2 border-blue-100 hover:shadow-xl transition-shadow">
                             <div className="flex items-center gap-3 mb-2">
                                 <Mountain className="text-blue-600" size={24} />
@@ -511,7 +514,6 @@ function HotelDetails() {
                             <p className="text-lg font-bold text-gray-800">{Vues[0]}</p>
                         </div>
                     )}
-
                     {City && (
                         <div className="bg-white rounded-xl p-4 shadow-lg border-2 border-green-100 hover:shadow-xl transition-shadow">
                             <div className="flex items-center gap-3 mb-2">
@@ -531,10 +533,11 @@ function HotelDetails() {
                             Thèmes & Caractéristiques
                         </h3>
                         <div className="flex flex-wrap gap-3">
-                            {Theme?.map((theme, index) => (
+                            {Theme?.map((theme) => (
                                 <span
-                                    key={`theme-${index}`}
-                                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-50 to-orange-100 rounded-full shadow-md border-2 border-orange-200 text-orange-700 font-semibold hover:shadow-lg transition-all hover:scale-105"
+                                    key={theme}
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-50 to-orange-100
+                                    rounded-full shadow-md border-2 border-orange-200 text-orange-700 font-semibold hover:shadow-lg transition-all hover:scale-105"
                                 >
                                     <Sparkles size={16} />
                                     {theme}
@@ -577,40 +580,40 @@ function HotelDetails() {
                 {/* Main Content Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-24 lg:pb-8">
 
-                    {/* Left Content Area */}
+                    {/* ── Left Content ─────────────────────────────────────── */}
                     <div className="lg:col-span-2 space-y-8">
 
-                        {/* Overview Tab */}
+                        {/* Overview */}
                         {activeTab === "overview" && (
                             <>
-                                {/* Hotel Description Card */}
                                 <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8">
                                     <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
                                         <Info className="text-sky-600" size={32} />
                                         À Propos de {Name}
                                     </h2>
-
                                     <div className="prose max-w-none">
                                         <p className="text-gray-700 leading-relaxed text-lg mb-6">
-                                            Découvrez {Name}, un {Type?.toLowerCase()} exceptionnel situé à {City?.Name}, {City?.Country}.
-                                            Classé {Category?.Title}, cet établissement offre une expérience unique avec {Vues?.length > 0 ? `une magnifique ${Vues[0].toLowerCase()}` : 'des vues imprenantes'}.
+                                            Découvrez {Name}, un {Type?.toLowerCase()} exceptionnel situé à {City?.Name},{" "}
+                                            {City?.Country?.Name ?? ""}.
+                                            Classé {Category?.Title}, cet établissement offre une expérience unique avec{" "}
+                                            {Vues?.length > 0 ? `une magnifique ${Vues[0].toLowerCase()}` : "des vues imprenantes"}.
                                         </p>
-
                                         {Theme?.length > 0 && (
                                             <p className="text-gray-700 leading-relaxed text-lg">
-                                                Parfait pour {Theme.map((t, i) => (
-                                                <span key={i}>
-                                                        {i > 0 && (i === Theme.length - 1 ? ' et ' : ', ')}
-                                                    <strong className="text-sky-700">{t.toLowerCase()}</strong>
+                                                Parfait pour{" "}
+                                                {Theme.map((t, i) => (
+                                                    <span key={t}>
+                                                        {i > 0 && (i === Theme.length - 1 ? " et " : ", ")}
+                                                        <strong className="text-sky-700">{t.toLowerCase()}</strong>
                                                     </span>
-                                            ))}, cet hôtel répond à tous vos besoins de confort et de détente.
+                                                ))}
+                                                , cet hôtel répond à tous vos besoins de confort et de détente.
                                             </p>
                                         )}
                                     </div>
                                 </div>
 
-                                {/* Boarding Options */}
-                                {Boarding && Boarding.length > 0 && (
+                                {Boarding?.length > 0 && (
                                     <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8">
                                         <h3 className="font-bold text-gray-800 mb-6 text-2xl flex items-center gap-3">
                                             <Receipt className="text-orange-500" size={28} />
@@ -628,74 +631,49 @@ function HotelDetails() {
                                                         </span>
                                                         <CheckCircle2 className="text-green-600" size={22} />
                                                     </div>
-                                                    <p className="font-bold text-gray-800 text-xl mb-2">
-                                                        {board.Name}
-                                                    </p>
+                                                    <p className="font-bold text-gray-800 text-xl mb-2">{board.Name}</p>
                                                     {board.Description && (
-                                                        <p className="text-sm text-gray-600 leading-relaxed">
-                                                            {board.Description}
-                                                        </p>
+                                                        <p className="text-sm text-gray-600 leading-relaxed">{board.Description}</p>
                                                     )}
                                                 </div>
                                             ))}
                                         </div>
                                         <div className="mt-6 p-4 bg-sky-50 rounded-xl border-l-4 border-sky-600">
                                             <p className="text-sm text-gray-700">
-                                                <strong>💡 Conseil :</strong> Les formules de pension peuvent varier selon la saison. Contactez-nous pour plus d'informations sur les tarifs actuels.
+                                                <strong>💡 Conseil :</strong> Les formules de pension peuvent varier selon la saison.
+                                                Contactez-nous pour plus d'informations sur les tarifs actuels.
                                             </p>
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Why Book Direct */}
                                 <div className="bg-gradient-to-br from-sky-600 to-blue-700 rounded-2xl shadow-xl p-6 md:p-8 text-white">
                                     <h3 className="font-bold mb-6 text-2xl flex items-center gap-3">
                                         <Award size={28} />
                                         Avantages de la Réservation Directe
                                     </h3>
                                     <div className="grid sm:grid-cols-2 gap-4">
-                                        <div className="flex items-start gap-3 bg-white/10 p-4 rounded-xl backdrop-blur-sm">
-                                            <Award className="flex-shrink-0 mt-1" size={24} />
-                                            <div>
-                                                <h4 className="font-bold mb-1">Meilleur Prix Garanti</h4>
-                                                <p className="text-sm text-sky-100">Nous garantissons le meilleur tarif du marché</p>
+                                        {BOOKING_ADVANTAGES.map(({ icon: Icon, title, desc }) => (
+                                            <div key={title} className="flex items-start gap-3 bg-white/10 p-4 rounded-xl backdrop-blur-sm">
+                                                <Icon className="flex-shrink-0 mt-1" size={24} />
+                                                <div>
+                                                    <h4 className="font-bold mb-1">{title}</h4>
+                                                    <p className="text-sm text-sky-100">{desc}</p>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="flex items-start gap-3 bg-white/10 p-4 rounded-xl backdrop-blur-sm">
-                                            <Clock className="flex-shrink-0 mt-1" size={24} />
-                                            <div>
-                                                <h4 className="font-bold mb-1">Annulation Flexible</h4>
-                                                <p className="text-sm text-sky-100">Modifiez ou annulez facilement</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-start gap-3 bg-white/10 p-4 rounded-xl backdrop-blur-sm">
-                                            <Sparkles className="flex-shrink-0 mt-1" size={24} />
-                                            <div>
-                                                <h4 className="font-bold mb-1">Privilèges Exclusifs</h4>
-                                                <p className="text-sm text-sky-100">Surclassement et services premium</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-start gap-3 bg-white/10 p-4 rounded-xl backdrop-blur-sm">
-                                            <Shield className="flex-shrink-0 mt-1" size={24} />
-                                            <div>
-                                                <h4 className="font-bold mb-1">Support 24/7</h4>
-                                                <p className="text-sm text-sky-100">Assistance disponible à tout moment</p>
-                                            </div>
-                                        </div>
+                                        ))}
                                     </div>
                                 </div>
                             </>
                         )}
 
-                        {/* Location Tab */}
+                        {/* Location */}
                         {activeTab === "location" && (
                             <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8">
                                 <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-8 flex items-center gap-3">
                                     <Navigation className="text-sky-600" size={32} />
                                     Localisation & Accès
                                 </h2>
-
-                                {/* Location Details */}
                                 <div className="space-y-6">
                                     <div className="p-6 bg-gradient-to-br from-sky-50 to-blue-50 rounded-xl border-2 border-sky-200">
                                         <div className="flex items-start gap-4">
@@ -704,21 +682,20 @@ function HotelDetails() {
                                                 <h3 className="font-bold text-gray-800 text-xl mb-2">Adresse</h3>
                                                 <p className="text-gray-700 text-lg leading-relaxed">
                                                     {Name}<br />
-                                                    {City?.Name}, {City?.Country}
+                                                    {City?.Name}{City?.Country?.Name ? `, ${City.Country.Name}` : ""}
                                                 </p>
                                             </div>
                                         </div>
                                     </div>
-
-                                    {Vues && Vues.length > 0 && (
+                                    {Vues?.length > 0 && (
                                         <div className="p-6 bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl border-2 border-orange-200">
                                             <div className="flex items-start gap-4">
                                                 <Eye className="text-orange-600 flex-shrink-0" size={32} />
                                                 <div>
                                                     <h3 className="font-bold text-gray-800 text-xl mb-3">Points de Vue</h3>
                                                     <div className="flex flex-wrap gap-2">
-                                                        {Vues.map((vue, index) => (
-                                                            <span key={index} className="px-4 py-2 bg-white rounded-full text-orange-700 font-semibold shadow-sm">
+                                                        {Vues.map((vue) => (
+                                                            <span key={vue} className="px-4 py-2 bg-white rounded-full text-orange-700 font-semibold shadow-sm">
                                                                 {vue}
                                                             </span>
                                                         ))}
@@ -727,22 +704,18 @@ function HotelDetails() {
                                             </div>
                                         </div>
                                     )}
-
                                     <div className="grid md:grid-cols-2 gap-4">
                                         <div className="p-5 bg-gray-50 rounded-xl border-2 border-gray-200">
                                             <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
-                                                <Car size={20} className="text-sky-600" />
-                                                Accès en Voiture
+                                                <Car size={20} className="text-sky-600" /> Accès en Voiture
                                             </h4>
                                             <p className="text-gray-600 text-sm">
-                                                Parking gratuit disponible. GPS : {City?.Name}, {City?.Country}
+                                                Parking gratuit disponible. GPS : {City?.Name}{City?.Country?.Name ? `, ${City.Country.Name}` : ""}
                                             </p>
                                         </div>
-
                                         <div className="p-5 bg-gray-50 rounded-xl border-2 border-gray-200">
                                             <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
-                                                <Navigation size={20} className="text-sky-600" />
-                                                À Proximité
+                                                <Navigation size={20} className="text-sky-600" /> À Proximité
                                             </h4>
                                             <p className="text-gray-600 text-sm">
                                                 Centre-ville, plages, sites touristiques accessibles
@@ -753,7 +726,7 @@ function HotelDetails() {
                             </div>
                         )}
 
-                        {/* Gallery Tab */}
+                        {/* Gallery */}
                         {activeTab === "gallery" && (
                             <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8">
                                 <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-8 flex items-center gap-3">
@@ -764,7 +737,7 @@ function HotelDetails() {
                                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                         {allImages.map((img, index) => (
                                             <div
-                                                key={index}
+                                                key={img.Url ?? index}
                                                 className="relative aspect-video rounded-xl overflow-hidden cursor-pointer group shadow-lg hover:shadow-2xl transition-all"
                                                 onClick={() => setSelectedImageIndex(index)}
                                             >
@@ -775,10 +748,7 @@ function HotelDetails() {
                                                     loading="lazy"
                                                 />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center">
-                                                    <Eye
-                                                        size={40}
-                                                        className="text-white transform scale-75 group-hover:scale-100 transition-transform"
-                                                    />
+                                                    <Eye size={40} className="text-white transform scale-75 group-hover:scale-100 transition-transform" />
                                                 </div>
                                                 <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
                                                     {index + 1}/{allImages.length}
@@ -795,7 +765,7 @@ function HotelDetails() {
                             </div>
                         )}
 
-                        {/* Amenities Tab */}
+                        {/* Amenities */}
                         {activeTab === "amenities" && (
                             <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8">
                                 <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-8 flex items-center gap-3">
@@ -803,167 +773,133 @@ function HotelDetails() {
                                     Équipements & Services Premium
                                 </h2>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-                                    {commonAmenities.map((amenity, index) => {
+                                    {commonAmenities.map((amenity) => {
                                         const Icon = amenity.icon;
                                         return (
                                             <div
-                                                key={index}
-                                                className="flex items-center gap-4 p-5 bg-gradient-to-br from-sky-50 to-white border-2 border-sky-100 rounded-xl hover:shadow-lg hover:border-sky-300 hover:scale-105 transition-all"
+                                                key={amenity.label}
+                                                className="flex items-center gap-4 p-4 bg-gradient-to-r from-sky-50 to-blue-50 rounded-xl border-2 border-sky-100 hover:border-sky-300 hover:shadow-lg transition-all group"
                                             >
-                                                <div className="p-3 bg-sky-100 rounded-full">
-                                                    <Icon className="text-sky-600 flex-shrink-0" size={24} />
+                                                <div className="p-3 bg-sky-600 rounded-xl group-hover:scale-110 transition-transform flex-shrink-0">
+                                                    <Icon size={24} className="text-white" />
                                                 </div>
-                                                <span className="font-semibold text-gray-700 text-lg">
-                                                    {amenity.label}
-                                                </span>
+                                                <span className="font-semibold text-gray-800">{amenity.label}</span>
                                             </div>
                                         );
                                     })}
                                 </div>
-
-                                {/* Additional Services */}
-                                <div className="p-6 bg-gradient-to-r from-orange-50 to-orange-100 rounded-xl border-l-4 border-orange-500">
-                                    <h3 className="font-bold text-gray-800 mb-4 text-xl">Services Supplémentaires</h3>
-                                    <ul className="space-y-2 text-gray-700">
-                                        <li className="flex items-center gap-2">
-                                            <CheckCircle2 size={18} className="text-orange-600" />
-                                            <span>Conciergerie disponible 24h/24</span>
-                                        </li>
-                                        <li className="flex items-center gap-2">
-                                            <CheckCircle2 size={18} className="text-orange-600" />
-                                            <span>Service de blanchisserie</span>
-                                        </li>
-                                        <li className="flex items-center gap-2">
-                                            <CheckCircle2 size={18} className="text-orange-600" />
-                                            <span>Transfert aéroport (sur demande)</span>
-                                        </li>
-                                        <li className="flex items-center gap-2">
-                                            <CheckCircle2 size={18} className="text-orange-600" />
-                                            <span>Organisation d'excursions</span>
-                                        </li>
+                                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-2xl p-6 border-2 border-orange-200">
+                                    <h3 className="font-bold text-gray-800 mb-4 text-xl flex items-center gap-2">
+                                        <Sparkles className="text-orange-500" size={24} />
+                                        Services Additionnels
+                                    </h3>
+                                    <ul className="space-y-3">
+                                        {EXTRA_SERVICES.map((service) => (
+                                            <li key={service} className="flex items-center gap-3 text-gray-700">
+                                                <CheckCircle2 size={20} className="text-green-600 flex-shrink-0" />
+                                                {service}
+                                            </li>
+                                        ))}
                                     </ul>
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    {/* Right Sidebar - ENHANCED BOOKING CARD */}
-                    <div className="lg:col-span-1">
-                        <div className="bg-white rounded-2xl shadow-2xl p-6 lg:sticky lg:top-6 space-y-6">
+                    {/* ── Right Sidebar: Booking Panel ─────────────────────── */}
+                    <div className="space-y-6">
+                        <div className="bg-white rounded-2xl shadow-xl p-6 sticky top-4">
+                            <h3 className="font-bold text-gray-800 text-xl mb-6 flex items-center gap-2">
+                                <Calendar className="text-sky-600" size={24} />
+                                Réserver votre séjour
+                            </h3>
 
-                            {/* HEADER */}
-                            <div className="border-b-2 border-sky-100 pb-4">
-                                <h3 className="text-2xl font-bold text-sky-700 flex items-center gap-2">
-                                    <Receipt size={28} />
-                                    Chambres & Tarifs
-                                </h3>
+                            {/* ✅ DateRangePicker — correct contract: range + setRange */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                    Dates du séjour
+                                </label>
+                                <DateRangePicker
+                                    range={range}
+                                    setRange={handleSetRange}
+                                />
                             </div>
 
-                            {/* DATE AND ROOM INFO */}
-                            <div className="bg-gradient-to-r from-sky-50 to-blue-50 p-4 rounded-lg border-2 border-sky-200">
-                                <div className="flex items-center gap-3 text-sm text-gray-700 mb-3">
-                                    <Calendar className="text-sky-600" size={18} />
-                                    <span className="font-medium">
-                                        {checkInDate && checkOutDate
-                                            ? `${new Date(checkInDate).toLocaleDateString('fr-FR')} - ${new Date(checkOutDate).toLocaleDateString('fr-FR')}`
-                                            : 'Sélectionnez les dates'
-                                        }
+                            {/* Nights badge */}
+                            {range.from && range.to && (
+                                <div className="flex items-center gap-2 text-sm text-sky-700 bg-sky-50 rounded-lg px-3 py-2 mb-4 border border-sky-100">
+                                    <Calendar size={16} />
+                                    <span className="font-semibold">
+                                        {nights} nuit{nights > 1 ? "s" : ""}
+                                    </span>
+                                    <span className="text-gray-400 text-xs ml-auto">
+                                        {checkInDate} → {checkOutDate}
                                     </span>
                                 </div>
-                                <div className="flex items-center gap-3 text-sm text-gray-700">
-                                    <Users className="text-sky-600" size={18} />
-                                    <span className="font-medium">
-                                        {rooms.length} chambre{rooms.length > 1 ? 's' : ''}: {rooms.reduce((acc, r) => acc + r.adults, 0)} adulte{rooms.reduce((acc, r) => acc + r.adults, 0) > 1 ? 's' : ''} et {rooms.reduce((acc, r) => acc + r.children, 0)} enfant{rooms.reduce((acc, r) => acc + r.children, 0) > 1 ? 's' : ''}
-                                    </span>
-                                </div>
+                            )}
+
+                            {/* Boarding Type */}
+                            <div className="mb-6">
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                    Type de pension
+                                </label>
+                                <select
+                                    value={selectedBoarding}
+                                    onChange={(e) => {
+                                        setSelectedBoarding(e.target.value);
+                                        resetSearchState();
+                                    }}
+                                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-sky-500 focus:outline-none transition-colors text-gray-800 bg-white"
+                                >
+                                    <option value="BB">Bed & Breakfast (BB)</option>
+                                    <option value="HB">Demi-Pension (HB)</option>
+                                    <option value="FB">Pension Complète (FB)</option>
+                                    <option value="AI">Tout Inclus (AI)</option>
+                                    <option value="RO">Chambre Seule (RO)</option>
+                                </select>
                             </div>
 
-                            {/* DATE SELECTION */}
-                            <div className="space-y-4">
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-2">
-                                            Arrivée
-                                        </label>
-                                        <input
-                                            type="date"
-                                            value={checkInDate}
-                                            onChange={(e) => {
-                                                setCheckInDate(e.target.value);
-                                                setHasSearched(false);
-                                                setAvailableRooms([]);
-                                            }}
-                                            min={new Date().toISOString().split('T')[0]}
-                                            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-sky-500 focus:outline-none text-sm font-medium"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-2">
-                                            Départ
-                                        </label>
-                                        <input
-                                            type="date"
-                                            value={checkOutDate}
-                                            onChange={(e) => {
-                                                setCheckOutDate(e.target.value);
-                                                setHasSearched(false);
-                                                setAvailableRooms([]);
-                                            }}
-                                            min={checkInDate || new Date().toISOString().split('T')[0]}
-                                            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-sky-500 focus:outline-none text-sm font-medium"
-                                        />
-                                    </div>
+                            {/* Rooms Config */}
+                            <div className="mb-6">
+                                <div className="flex items-center justify-between mb-3">
+                                    <label className="text-sm font-semibold text-gray-700">
+                                        Chambres ({rooms.length})
+                                    </label>
+                                    <button
+                                        onClick={addRoom}
+                                        disabled={rooms.length >= 5}
+                                        className="text-xs px-3 py-1.5 bg-sky-600 hover:bg-sky-700 disabled:bg-gray-300 text-white rounded-lg font-semibold transition-colors"
+                                    >
+                                        + Ajouter
+                                    </button>
                                 </div>
 
-                                {/* ROOM CONFIGURATION */}
-                                <div className="bg-sky-50 p-4 rounded-lg border-2 border-sky-200">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
-                                            <Users size={18} className="text-sky-600" />
-                                            Configuration
-                                        </label>
-                                        {rooms.length < 5 && (
-                                            <button
-                                                onClick={() => {
-                                                    addRoom();
-                                                    setHasSearched(false);
-                                                    setAvailableRooms([]);
-                                                }}
-                                                className="text-xs bg-sky-600 text-white px-3 py-1 rounded-full hover:bg-sky-700 transition-colors font-semibold"
-                                            >
-                                                + Chambre
-                                            </button>
-                                        )}
-                                    </div>
-
+                                <div className="space-y-3">
                                     {rooms.map((room, index) => (
-                                        <div key={index} className="bg-white p-3 rounded-lg mb-2 border border-gray-200">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="text-xs font-bold text-sky-700">Chambre {index + 1}</span>
+                                        <div key={index} className="p-4 bg-gray-50 rounded-xl border-2 border-gray-200">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <span className="text-sm font-bold text-gray-700">
+                                                    Chambre {index + 1}
+                                                </span>
                                                 {rooms.length > 1 && (
                                                     <button
-                                                        onClick={() => {
-                                                            removeRoom(index);
-                                                            setHasSearched(false);
-                                                            setAvailableRooms([]);
-                                                        }}
-                                                        className="text-red-500 hover:text-red-700"
+                                                        onClick={() => removeRoom(index)}
+                                                        className="text-red-500 hover:text-red-700 transition-colors"
                                                     >
                                                         <X size={16} />
                                                     </button>
                                                 )}
                                             </div>
-                                            <div className="grid grid-cols-2 gap-2">
+                                            <div className="grid grid-cols-2 gap-3">
                                                 <div>
-                                                    <label className="text-xs text-gray-600">Adultes</label>
+                                                    <label className="text-xs text-gray-500 mb-1 block">Adultes</label>
                                                     <select
                                                         value={room.adults}
                                                         onChange={(e) => {
-                                                            updateRoom(index, 'adults', Number(e.target.value));
-                                                            setHasSearched(false);
-                                                            setAvailableRooms([]);
+                                                            updateRoom(index, "adults", Number(e.target.value));
+                                                            resetSearchState();
                                                         }}
-                                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:border-sky-500 focus:outline-none"
+                                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-sky-400 focus:outline-none bg-white"
                                                     >
                                                         {[1, 2, 3, 4].map(n => (
                                                             <option key={n} value={n}>{n}</option>
@@ -971,15 +907,14 @@ function HotelDetails() {
                                                     </select>
                                                 </div>
                                                 <div>
-                                                    <label className="text-xs text-gray-600">Enfants</label>
+                                                    <label className="text-xs text-gray-500 mb-1 block">Enfants</label>
                                                     <select
                                                         value={room.children}
                                                         onChange={(e) => {
-                                                            updateRoom(index, 'children', Number(e.target.value));
-                                                            setHasSearched(false);
-                                                            setAvailableRooms([]);
+                                                            updateRoom(index, "children", Number(e.target.value));
+                                                            resetSearchState();
                                                         }}
-                                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:border-sky-500 focus:outline-none"
+                                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-sky-400 focus:outline-none bg-white"
                                                     >
                                                         {[0, 1, 2, 3].map(n => (
                                                             <option key={n} value={n}>{n}</option>
@@ -991,131 +926,103 @@ function HotelDetails() {
                                     ))}
                                 </div>
 
-                                {/* BOARDING TYPE TABS (BEFORE SEARCH) */}
-                                {Boarding && Boarding.length > 0 && (
-                                    <div className="border-t-2 border-gray-100 pt-4">
-                                        <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
-                                            {Boarding.map((board) => (
-                                                <button
-                                                    key={board.Id}
-                                                    onClick={() => {
-                                                        setSelectedBoarding(board.Code);
-                                                        setHasSearched(false);
-                                                        setAvailableRooms([]);
-                                                    }}
-                                                    className={`px-4 py-2.5 rounded-lg font-semibold text-sm whitespace-nowrap transition-all border-b-2 ${
-                                                        selectedBoarding === board.Code
-                                                            ? "bg-white text-gray-900 border-sky-600 shadow-sm"
-                                                            : "bg-gray-50 text-gray-600 hover:bg-gray-100 border-transparent"
-                                                    }`}
-                                                >
-                                                    {board.Name}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* SEARCH BUTTON */}
-                                <button
-                                    onClick={handleSearchRooms}
-                                    disabled={isSearchingRooms || !checkInDate || !checkOutDate}
-                                    className="w-full py-3 bg-gradient-to-r from-pink-600 to-red-600 hover:from-pink-700 hover:to-red-700 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                >
-                                    {isSearchingRooms ? (
-                                        <>
-                                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                            Recherche...
-                                        </>
-                                    ) : (
-                                        <>
-                                            Recherche
-                                        </>
-                                    )}
-                                </button>
+                                {/* Guests summary */}
+                                <div className="mt-3 flex items-center gap-2 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+                                    <Users size={14} />
+                                    <span>
+                                        {totalAdults} adulte{totalAdults > 1 ? "s" : ""}
+                                        {totalChildren > 0 && `, ${totalChildren} enfant${totalChildren > 1 ? "s" : ""}`}
+                                    </span>
+                                </div>
                             </div>
 
-                            {/* ROOM SELECTION (AFTER SEARCH) */}
-                            {hasSearched && availableRooms.length > 0 && (
-                                <div className="border-t-2 border-gray-100 pt-4 space-y-4">
-                                    {rooms.map((room, index) => (
-                                        <div key={index} className="border-2 border-gray-200 rounded-xl p-4 bg-gradient-to-br from-white to-gray-50">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm font-bold text-gray-800">
-                                                        Chambre {index + 1}: {room.adults} adulte{room.adults > 1 ? 's' : ''}
-                                                    </span>
-                                                    <span className="bg-sky-100 text-sky-700 text-xs px-2 py-1 rounded-full font-semibold">
-                                                        Info
-                                                    </span>
-                                                    <span className="bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full font-semibold">
-                                                        Sur Demande
-                                                    </span>
+                            {/* Search Button */}
+                            <button
+                                onClick={handleSearchRooms}
+                                disabled={isSearchingRooms}
+                                className="w-full py-4 bg-sky-600 hover:bg-sky-700 disabled:bg-sky-400 text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 mb-4"
+                            >
+                                {isSearchingRooms ? (
+                                    <>
+                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        Recherche en cours...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Eye size={20} />
+                                        Rechercher les disponibilités
+                                    </>
+                                )}
+                            </button>
+
+                            {/* Available Rooms */}
+                            {hasSearched && (
+                                <div className="space-y-3 mb-4">
+                                    {availableRooms.length > 0 ? (
+                                        <>
+                                            <p className="text-sm font-semibold text-gray-700 mb-2">
+                                                Sélectionnez vos chambres :
+                                            </p>
+                                            {rooms.map((room, roomIndex) => (
+                                                <div key={roomIndex} className="p-3 bg-sky-50 rounded-xl border border-sky-200">
+                                                    <p className="text-xs font-bold text-sky-700 mb-2">
+                                                        Chambre {roomIndex + 1}
+                                                    </p>
+                                                    <select
+                                                        value={room.selectedRoomType}
+                                                        onChange={(e) => updateRoom(roomIndex, "selectedRoomType", e.target.value)}
+                                                        className="w-full px-3 py-2 border border-sky-200 rounded-lg text-sm focus:border-sky-500 focus:outline-none bg-white"
+                                                    >
+                                                        <option value="">-- Choisir un type --</option>
+                                                        {availableRooms.map((r) => (
+                                                            <option key={r.id} value={r.id}>
+                                                                {r.name} — {new Intl.NumberFormat("fr-DZ").format(r.price * nights)} DZD
+                                                            </option>
+                                                        ))}
+                                                    </select>
                                                 </div>
-                                            </div>
-
-                                            <div className="flex items-center justify-between gap-3">
-                                                <select
-                                                    value={room.selectedRoomType}
-                                                    onChange={(e) => updateRoom(index, 'selectedRoomType', e.target.value)}
-                                                    className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-sky-500 focus:outline-none font-medium text-sm"
-                                                >
-                                                    <option value="">Sélectionner une chambre</option>
-                                                    {availableRooms.map((roomType) => (
-                                                        <option key={roomType.id} value={roomType.id}>
-                                                            {roomType.name}
-                                                        </option>
-                                                    ))}
-                                                </select>
-
-                                                {room.selectedRoomType && (
-                                                    <div className="text-right">
-                                                        <span className="text-lg font-bold text-gray-800">
-                                                            {availableRooms.find(r => r.id === room.selectedRoomType)?.price?.toLocaleString()} -
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
+                                            ))}
+                                        </>
+                                    ) : (
+                                        <div className="flex items-center gap-2 p-3 bg-orange-50 rounded-xl border border-orange-200">
+                                            <AlertCircle size={18} className="text-orange-500 flex-shrink-0" />
+                                            <p className="text-sm text-orange-700 font-semibold">
+                                                Aucune chambre disponible pour ces critères
+                                            </p>
                                         </div>
-                                    ))}
+                                    )}
+                                </div>
+                            )}
 
-                                    {/* TOTAL PRICE */}
-                                    <div className="border-t-2 border-gray-200 pt-4">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <span className="text-sm font-semibold text-gray-700">
-                                                Montant total du séjour:
-                                            </span>
-                                            <span className="text-2xl font-bold text-sky-700">
-                                                {totalPrice.toLocaleString()} <span className="text-lg">DZD</span>
-                                            </span>
+                            {/* Total Price */}
+                            {totalPrice > 0 && (
+                                <div className="p-4 bg-gradient-to-r from-sky-50 to-blue-50 rounded-xl border-2 border-sky-200 mb-4">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-semibold text-gray-700">Total du séjour</span>
+                                        <div className="text-right">
+                                            <p className="text-2xl font-extrabold text-sky-700">
+                                                {new Intl.NumberFormat("fr-DZ").format(totalPrice)}
+                                                <span className="text-sm font-normal text-gray-500 ml-1">DZD</span>
+                                            </p>
+                                            {nights > 1 && (
+                                                <p className="text-xs text-gray-400">
+                                                    {nights} nuits · {rooms.length} chambre{rooms.length > 1 ? "s" : ""}
+                                                </p>
+                                            )}
                                         </div>
-
-                                        {/* RESERVE BUTTON */}
-                                        <button
-                                            onClick={handleReserve}
-                                            disabled={totalPrice === 0 || !rooms.every(r => r.selectedRoomType)}
-                                            className="w-full py-4 bg-gradient-to-r from-pink-600 to-red-600 hover:from-pink-700 hover:to-red-700 text-white font-bold rounded-xl shadow-lg hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed text-lg"
-                                        >
-                                            RÉSERVER
-                                        </button>
                                     </div>
                                 </div>
                             )}
 
-                            {/* NO RESULTS MESSAGE */}
-                            {hasSearched && availableRooms.length === 0 && (
-                                <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-4 flex items-start gap-3">
-                                    <AlertCircle className="text-orange-600 flex-shrink-0 mt-0.5" size={20} />
-                                    <div>
-                                        <p className="text-sm font-semibold text-orange-800 mb-1">
-                                            Aucune chambre disponible
-                                        </p>
-                                        <p className="text-xs text-orange-700">
-                                            Aucune chambre n'est disponible pour les dates et critères sélectionnés. Veuillez essayer d'autres dates ou modifier votre recherche.
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
+                            {/* Reserve Button */}
+                            <button
+                                onClick={handleReserve}
+                                disabled={!hasSearched || availableRooms.length === 0 || totalPrice === 0}
+                                className="w-full py-4 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 disabled:from-gray-300 disabled:to-gray-400 text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                            >
+                                <CheckCircle2 size={20} />
+                                Réserver maintenant
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -167,7 +167,7 @@ const HotelsPopup = ({
                                 {activeCountry.citiesData.map((city, cityIndex) => (
                                     <Link
                                         key={city.Id}
-                                        to={`/hotels/city/${city.Id}`}
+                                        to={`/hotels/${city.Id}`}
                                         onClick={onClose}
                                         className="group/btn relative px-3 sm:px-4 py-3 sm:py-3.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-orange-500 hover:text-white hover:border-orange-500 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 text-left overflow-hidden block"
                                         style={{

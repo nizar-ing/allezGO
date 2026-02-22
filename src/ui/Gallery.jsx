@@ -1,3 +1,4 @@
+// src/ui/Gallery.jsx
 import React from 'react';
 
 function Gallery() {
@@ -18,7 +19,7 @@ function Gallery() {
         { id: 8, colSpan: 'col-span-4', rowSpan: 'row-span-3' },  // Big
 
         // Row 5: 4+3+3+2 = 12 columns
-        { id: 9, colSpan: 'col-span-3', rowSpan: 'row-span-2' },  // Medium
+        { id: 9,  colSpan: 'col-span-3', rowSpan: 'row-span-2' }, // Medium
         { id: 10, colSpan: 'col-span-3', rowSpan: 'row-span-2' }, // Medium
         { id: 11, colSpan: 'col-span-2', rowSpan: 'row-span-2' }, // Medium
 
@@ -100,7 +101,8 @@ function Gallery() {
                 ))}
             </div>
 
-            <style jsx>{`
+            {/* ✅ Fixed: removed jsx attribute — not supported in plain React + Vite */}
+            <style>{`
                 @keyframes fadeIn {
                     from {
                         opacity: 0;

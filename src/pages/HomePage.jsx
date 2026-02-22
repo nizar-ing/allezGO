@@ -1,6 +1,6 @@
 import Carousel from "../ui/Carrousel.jsx";
-import {carouselImages, testimonials} from "../data/data.js";
-import BookingHotels from "../ui/BookingHotels.jsx";
+import { carouselImages, testimonials } from "../data";
+import BookingHotels from "../components/booking/BookingHotels.jsx";
 import TestimonialCarousel from "../components/TestimonialsCarousel.jsx";
 import Gallery from "../ui/Gallery.jsx";
 import PartnerCarrousel from "../ui/PartnerCarrousel.jsx";

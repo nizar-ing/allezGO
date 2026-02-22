@@ -1,160 +1,128 @@
-import { useState } from "react";
+// src/components/HotelsFiltering.jsx
+import { useState, useMemo, useCallback } from "react";
 import {
-    SlidersHorizontal,
-    Star,
-    Bed,
-    UtensilsCrossed,
-    Wifi,
-    Waves,
-    Dumbbell,
-    Car,
-    Sparkles,
-    Users,
-    ChevronDown,
-    ChevronUp,
-    X,
-    Filter,
+    SlidersHorizontal, Star, Bed, UtensilsCrossed,  // ✅ Fix #6 — Wifi removed
+    Waves, Dumbbell, Car, Sparkles, Users, ChevronDown,
+    ChevronUp, X, Filter,
 } from "lucide-react";
 
-function HotelsFiltering({ onFilterChange, initialFilters = {} }) {
-    // Filter states
-    const [filters, setFilters] = useState({
-        // Tarifs et disponibilités
-        hotelRecommander: initialFilters.hotelRecommander || false,
-        tarifEnPromotion: initialFilters.tarifEnPromotion || false,
-        disponibleSeulement: initialFilters.disponibleSeulement || false,
-        annulationGratuite: initialFilters.annulationGratuite || false,
+// ✅ Fix #1 — static data outside component, never recreated
+const ARRANGEMENTS = [
+    { id: "petit-dejeuner",        label: "Petit Déjeuner",         count: 4 },
+    { id: "demi-pension-plus",     label: "Demi Pension Plus",       count: 2 },
+    { id: "pension-complete-plus", label: "Pension Complète Plus",   count: 2 },
+    { id: "demi-pension",          label: "Demi Pension",            count: 5 },
+    { id: "all-inclusive",         label: "All Inclusive",           count: 4 },
+    { id: "pension-complete",      label: "Pension Complète",        count: 2 },
+];
 
-        // Arrangements
-        arrangements: initialFilters.arrangements || [],
+const ROOM_TYPES = [
+    { id: "chambre-triple",         label: "Chambre Triple",          count: 5 },
+    { id: "chambre-double-vue-mer", label: "Chambre Double Vue Mer",  count: 5 },
+    { id: "chambre-standard",       label: "Chambre Standard",        count: 4 },
+    { id: "chambre-double",         label: "Chambre Double",          count: 2 },
+    { id: "suite",                  label: "Suite",                   count: 3 }, // ✅ Fix #7 — dead button replaced with proper filter entry
+];
 
-        // Catégorie (star rating)
-        categories: initialFilters.categories || [],
+const SERVICES = [
+    { id: "famille",               label: "Famille",                   count: 5, icon: Users },
+    { id: "thalasso-spa",          label: "Thalasso Spa",              count: 5, icon: Sparkles },
+    { id: "sport-loisirs",         label: "Sport & Loisirs",           count: 4, icon: Dumbbell },
+    { id: "bord-mer",              label: "Bord de Mer",               count: 5, icon: Waves },
+    { id: "tout-inclus",           label: "All Inclusive",             count: 5, icon: UtensilsCrossed },
+    { id: "internet-celibataires", label: "Interdit aux célibataires", count: 2, icon: Users },
+    { id: "degustation",           label: "Dégustation",               count: 2, icon: UtensilsCrossed },
+    { id: "interdit-parking",      label: "Interdit le parking",       count: 2, icon: Car },
+    { id: "affaires",              label: "Affaires",                  count: 2, icon: Bed },
+    { id: "golf",                  label: "Golf",                      count: 1, icon: Dumbbell },
+    { id: "luxe",                  label: "Luxe",                      count: 1, icon: Star },
+];
 
-        // Budget range
-        budgetMin: initialFilters.budgetMin || 0,
-        budgetMax: initialFilters.budgetMax || 1000,
+const TARIFS_OPTIONS = [
+    { key: "hotelRecommander",    label: "Hôtel à recommander",  count: 4 },
+    { key: "tarifEnPromotion",    label: "Tarifs en promotion",   count: 8 },
+    { key: "disponibleSeulement", label: "Disponible seulement",  count: 5 },
+    { key: "annulationGratuite",  label: "Annulation Gratuite",   count: 6 },
+];
 
-        // Type de chambres
-        roomTypes: initialFilters.roomTypes || [],
+const STAR_COUNTS = { 5: 1, 4: 5, 3: 5 };
 
-        // Services
-        services: initialFilters.services || [],
-    });
+const ARRAY_FILTER_KEYS = new Set(["arrangements", "categories", "roomTypes", "services"]);
 
-    // Section collapse states
+const DEFAULT_FILTERS = {
+    hotelRecommander:    false,
+    tarifEnPromotion:    false,
+    disponibleSeulement: false,
+    annulationGratuite:  false,
+    arrangements:        [],
+    categories:          [],
+    budgetMin:           0,
+    budgetMax:           1000,
+    roomTypes:           [],
+    services:            [],
+};
+
+// ── Component ──────────────────────────────────────────────────────────────────
+
+function HotelsFiltering({ onFilterChange, initialFilters }) {
+    const [filters, setFilters] = useState(() => ({
+        ...DEFAULT_FILTERS,
+        ...initialFilters,
+    }));
+
     const [expandedSections, setExpandedSections] = useState({
-        tarifs: true,
+        tarifs:       true,
         arrangements: true,
-        categorie: true,
-        budget: true,
-        chambres: true,
-        services: true,
+        categorie:    true,
+        budget:       true,
+        chambres:     true,
+        services:     true,
     });
 
-    // Available arrangements from API
-    const arrangements = [
-        { id: "petit-dejeuner", label: "Petit Déjeuner", count: 4 },
-        { id: "demi-pension-plus", label: "Demi Pension Plus", count: 2 },
-        { id: "pension-complete-plus", label: "Pension Complète Plus", count: 2 },
-        { id: "demi-pension", label: "Demi Pension", count: 5 },
-        { id: "all-inclusive", label: "All Inclusive", count: 4 },
-        { id: "pension-complete", label: "Pension Complète", count: 2 },
-    ];
-
-    // Room types
-    const roomTypes = [
-        { id: "chambre-triple", label: "Chambre Triple", count: 5 },
-        { id: "chambre-double-vue-mer", label: "Chambre Double Vue Mer", count: 5 },
-        { id: "chambre-standard", label: "Chambre Standard", count: 4 },
-        { id: "chambre-double", label: "Chambre Double", count: 2 },
-    ];
-
-    // Services available
-    const services = [
-        { id: "famille", label: "Famille", count: 5, icon: Users },
-        { id: "thalasso-spa", label: "Thalasso & Spa", count: 5, icon: Sparkles },
-        { id: "sport-loisirs", label: "Sport & Loisirs", count: 4, icon: Dumbbell },
-        { id: "bord-mer", label: "Bord de Mer", count: 5, icon: Waves },
-        { id: "tout-inclus", label: "All Inclusive", count: 5, icon: UtensilsCrossed },
-        { id: "internet-celibataires", label: "Interdit aux célibataires", count: 2, icon: Users },
-        { id: "degustation", label: "Dégustation", count: 2, icon: UtensilsCrossed },
-        { id: "interdit-parking", label: "Interdit le parking", count: 2, icon: Car },
-        { id: "affaires", label: "Affaires", count: 2, icon: Bed },
-        { id: "golf", label: "Golf", count: 1, icon: Dumbbell },
-        { id: "luxe", label: "Luxe", count: 1, icon: Star },
-    ];
-
-    // Toggle section expansion
-    const toggleSection = (section) => {
-        setExpandedSections((prev) => ({
-            ...prev,
-            [section]: !prev[section],
-        }));
-    };
-
-    // Handle filter changes
-    const handleFilterChange = (filterType, value) => {
-        let updatedFilters;
-
-        if (filterType === "arrangements" || filterType === "categories" || filterType === "roomTypes" || filterType === "services") {
-            // Handle array filters (checkboxes)
-            const currentArray = filters[filterType];
-            updatedFilters = {
-                ...filters,
-                [filterType]: currentArray.includes(value)
-                    ? currentArray.filter((item) => item !== value)
-                    : [...currentArray, value],
-            };
-        } else {
-            // Handle boolean or single value filters
-            updatedFilters = {
-                ...filters,
-                [filterType]: value,
-            };
-        }
-
-        setFilters(updatedFilters);
-        onFilterChange?.(updatedFilters);
-    };
-
-    // Reset all filters
-    const resetFilters = () => {
-        const resetState = {
-            hotelRecommander: false,
-            tarifEnPromotion: false,
-            disponibleSeulement: false,
-            annulationGratuite: false,
-            arrangements: [],
-            categories: [],
-            budgetMin: 0,
-            budgetMax: 1000,
-            roomTypes: [],
-            services: [],
-        };
-        setFilters(resetState);
-        onFilterChange?.(resetState);
-    };
-
-    // Count active filters
-    const getActiveFilterCount = () => {
+    // ✅ Fix #2 — useMemo replaces plain function call
+    const activeFilterCount = useMemo(() => {
         let count = 0;
-        if (filters.hotelRecommander) count++;
-        if (filters.tarifEnPromotion) count++;
+        if (filters.hotelRecommander)    count++;
+        if (filters.tarifEnPromotion)    count++;
         if (filters.disponibleSeulement) count++;
-        if (filters.annulationGratuite) count++;
+        if (filters.annulationGratuite)  count++;
         count += filters.arrangements.length;
         count += filters.categories.length;
         count += filters.roomTypes.length;
         count += filters.services.length;
         if (filters.budgetMin > 0 || filters.budgetMax < 1000) count++;
         return count;
-    };
+    }, [filters]);
 
-    const activeFilterCount = getActiveFilterCount();
+    // ✅ Fix #4 — toggleSection with functional update (no stale deps)
+    const toggleSection = useCallback((section) => {
+        setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+    }, []);
+
+    // ✅ Fix #3 — useCallback with filters + onFilterChange as deps
+    const handleFilterChange = useCallback((filterType, value) => {
+        const updated = ARRAY_FILTER_KEYS.has(filterType)
+            ? {
+                ...filters,
+                [filterType]: filters[filterType].includes(value)
+                    ? filters[filterType].filter(item => item !== value)
+                    : [...filters[filterType], value],
+            }
+            : { ...filters, [filterType]: value };
+
+        setFilters(updated);
+        onFilterChange?.(updated);
+    }, [filters, onFilterChange]);
+
+    // ✅ Fix #4 — useCallback
+    const resetFilters = useCallback(() => {
+        setFilters(DEFAULT_FILTERS);
+        onFilterChange?.(DEFAULT_FILTERS);
+    }, [onFilterChange]);
 
     return (
-        <div className="bg-white rounded-2xl shadow-xl p-6 sticky top-6 max-h-[calc(100vh-100px)] overflow-y-auto">
+        <div className="bg-white rounded-2xl shadow-xl p-6 sticky top-6 max-h-[calc(100vh-100px)] overflow-y-auto filter-scroll">
+
             {/* Header */}
             <div className="flex items-center justify-between mb-6 pb-4 border-b-2 border-sky-100">
                 <div className="flex items-center gap-3">
@@ -173,13 +141,12 @@ function HotelsFiltering({ onFilterChange, initialFilters = {} }) {
                         onClick={resetFilters}
                         className="flex items-center gap-2 text-sm text-sky-600 hover:text-sky-700 font-semibold transition-colors"
                     >
-                        <X size={16} />
-                        Réinitialiser
+                        <X size={16} /> Réinitialiser
                     </button>
                 )}
             </div>
 
-            {/* Tarifs et disponibilités Section */}
+            {/* Tarifs et disponibilités */}
             <div className="mb-6">
                 <button
                     onClick={() => toggleSection("tarifs")}
@@ -188,67 +155,26 @@ function HotelsFiltering({ onFilterChange, initialFilters = {} }) {
                     <span className="text-base">Tarifs et disponibilités</span>
                     {expandedSections.tarifs ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                 </button>
-
                 {expandedSections.tarifs && (
                     <div className="space-y-3 pl-1">
-                        <label className="flex items-center gap-3 cursor-pointer group">
-                            <input
-                                type="checkbox"
-                                checked={filters.hotelRecommander}
-                                onChange={(e) => handleFilterChange("hotelRecommander", e.target.checked)}
-                                className="w-4 h-4 rounded border-2 border-gray-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
-                            />
-                            <span className="text-sm text-gray-700 group-hover:text-gray-900 flex-1">
-                                Hôtel recommander
-                            </span>
-                            <span className="text-xs text-gray-400 font-semibold">(4)</span>
-                        </label>
-
-                        <label className="flex items-center gap-3 cursor-pointer group">
-                            <input
-                                type="checkbox"
-                                checked={filters.tarifEnPromotion}
-                                onChange={(e) => handleFilterChange("tarifEnPromotion", e.target.checked)}
-                                className="w-4 h-4 rounded border-2 border-gray-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
-                            />
-                            <span className="text-sm text-gray-700 group-hover:text-gray-900 flex-1">
-                                Tarifs en promotion
-                            </span>
-                            <span className="text-xs text-gray-400 font-semibold">(8)</span>
-                        </label>
-
-                        <label className="flex items-center gap-3 cursor-pointer group">
-                            <input
-                                type="checkbox"
-                                checked={filters.disponibleSeulement}
-                                onChange={(e) => handleFilterChange("disponibleSeulement", e.target.checked)}
-                                className="w-4 h-4 rounded border-2 border-gray-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
-                            />
-                            <span className="text-sm text-gray-700 group-hover:text-gray-900 flex-1">
-                                Disponible seulement
-                            </span>
-                            <span className="text-xs text-gray-400 font-semibold">(5)</span>
-                        </label>
-
-                        <label className="flex items-center gap-3 cursor-pointer group">
-                            <input
-                                type="checkbox"
-                                checked={filters.annulationGratuite}
-                                onChange={(e) => handleFilterChange("annulationGratuite", e.target.checked)}
-                                className="w-4 h-4 rounded border-2 border-gray-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
-                            />
-                            <span className="text-sm text-gray-700 group-hover:text-gray-900 flex-1">
-                                Annulation Gratuite
-                            </span>
-                            <span className="text-xs text-gray-400 font-semibold">(6)</span>
-                        </label>
+                        {TARIFS_OPTIONS.map(({ key, label, count }) => (
+                            <label key={key} className="flex items-center gap-3 cursor-pointer group">
+                                <input
+                                    type="checkbox"
+                                    checked={filters[key]}
+                                    onChange={(e) => handleFilterChange(key, e.target.checked)}
+                                    className="w-4 h-4 rounded border-2 border-gray-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
+                                />
+                                <span className="text-sm text-gray-700 group-hover:text-gray-900 flex-1">{label}</span>
+                                <span className="text-xs text-gray-400 font-semibold">{count}</span>
+                            </label>
+                        ))}
                     </div>
                 )}
             </div>
+            <div className="border-t border-gray-200 my-4" />
 
-            <div className="border-t border-gray-200 my-4"></div>
-
-            {/* Arrangements Section */}
+            {/* Arrangements */}
             <div className="mb-6">
                 <button
                     onClick={() => toggleSection("arrangements")}
@@ -257,10 +183,9 @@ function HotelsFiltering({ onFilterChange, initialFilters = {} }) {
                     <span className="text-base">Arrangements</span>
                     {expandedSections.arrangements ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                 </button>
-
                 {expandedSections.arrangements && (
                     <div className="space-y-3 pl-1">
-                        {arrangements.map((arrangement) => (
+                        {ARRANGEMENTS.map((arrangement) => (
                             <label key={arrangement.id} className="flex items-center gap-3 cursor-pointer group">
                                 <input
                                     type="checkbox"
@@ -268,19 +193,16 @@ function HotelsFiltering({ onFilterChange, initialFilters = {} }) {
                                     onChange={() => handleFilterChange("arrangements", arrangement.id)}
                                     className="w-4 h-4 rounded border-2 border-gray-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
                                 />
-                                <span className="text-sm text-gray-700 group-hover:text-gray-900 flex-1">
-                                    {arrangement.label}
-                                </span>
-                                <span className="text-xs text-gray-400 font-semibold">({arrangement.count})</span>
+                                <span className="text-sm text-gray-700 group-hover:text-gray-900 flex-1">{arrangement.label}</span>
+                                <span className="text-xs text-gray-400 font-semibold">{arrangement.count}</span>
                             </label>
                         ))}
                     </div>
                 )}
             </div>
+            <div className="border-t border-gray-200 my-4" />
 
-            <div className="border-t border-gray-200 my-4"></div>
-
-            {/* Catégorie Section */}
+            {/* Catégorie */}
             <div className="mb-6">
                 <button
                     onClick={() => toggleSection("categorie")}
@@ -289,34 +211,32 @@ function HotelsFiltering({ onFilterChange, initialFilters = {} }) {
                     <span className="text-base">Catégorie</span>
                     {expandedSections.categorie ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                 </button>
-
                 {expandedSections.categorie && (
                     <div className="space-y-3 pl-1">
-                        {[5, 4, 3].map((stars) => (
-                            <label key={stars} className="flex items-center gap-3 cursor-pointer group">
+                        {[5, 4, 3].map((starCount) => (
+                            <label key={starCount} className="flex items-center gap-3 cursor-pointer group">
                                 <input
                                     type="checkbox"
-                                    checked={filters.categories.includes(stars)}
-                                    onChange={() => handleFilterChange("categories", stars)}
+                                    checked={filters.categories.includes(starCount)}
+                                    onChange={() => handleFilterChange("categories", starCount)}
                                     className="w-4 h-4 rounded border-2 border-gray-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
                                 />
                                 <div className="flex items-center gap-1 flex-1">
-                                    {[...Array(stars)].map((_, i) => (
+                                    {Array.from({ length: starCount }, (_, i) => (
                                         <Star key={i} size={16} fill="#f97316" className="text-orange-500" />
                                     ))}
                                 </div>
                                 <span className="text-xs text-gray-400 font-semibold">
-                                    ({stars === 5 ? "1" : stars === 4 ? "5" : "5"})
+                                    {STAR_COUNTS[starCount]}
                                 </span>
                             </label>
                         ))}
                     </div>
                 )}
             </div>
+            <div className="border-t border-gray-200 my-4" />
 
-            <div className="border-t border-gray-200 my-4"></div>
-
-            {/* Budget Section */}
+            {/* Budget */}
             <div className="mb-6">
                 <button
                     onClick={() => toggleSection("budget")}
@@ -325,49 +245,49 @@ function HotelsFiltering({ onFilterChange, initialFilters = {} }) {
                     <span className="text-base">Budget</span>
                     {expandedSections.budget ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                 </button>
-
                 {expandedSections.budget && (
                     <div className="space-y-4 pl-1">
                         <div className="flex items-center gap-3">
                             <div className="flex-1">
-                                <label className="block text-xs font-semibold text-gray-600 mb-1">Min (DT)</label>
+                                <label className="block text-xs font-semibold text-gray-600 mb-1">
+                                    Min DA {/* ✅ Fix #5 — DT → DA */}
+                                </label>
                                 <input
                                     type="number"
                                     value={filters.budgetMin}
                                     onChange={(e) => handleFilterChange("budgetMin", Number(e.target.value))}
                                     className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-sky-500 focus:ring-2 focus:ring-sky-200 transition-all text-sm"
-                                    placeholder="139"
+                                    placeholder="0"
                                 />
                             </div>
                             <div className="flex-1">
-                                <label className="block text-xs font-semibold text-gray-600 mb-1">Max (DT)</label>
+                                <label className="block text-xs font-semibold text-gray-600 mb-1">
+                                    Max DA {/* ✅ Fix #5 */}
+                                </label>
                                 <input
                                     type="number"
                                     value={filters.budgetMax}
                                     onChange={(e) => handleFilterChange("budgetMax", Number(e.target.value))}
                                     className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-sky-500 focus:ring-2 focus:ring-sky-200 transition-all text-sm"
-                                    placeholder="588"
+                                    placeholder="1000"
                                 />
                             </div>
                         </div>
-
-                        {/* Range Display */}
                         <div className="flex items-center justify-between text-xs font-bold">
                             <span className="px-3 py-1 bg-sky-100 text-sky-700 rounded-full">
-                                {filters.budgetMin} DT
+                                {filters.budgetMin} DA {/* ✅ Fix #5 */}
                             </span>
                             <span className="text-gray-400">—</span>
                             <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full">
-                                {filters.budgetMax} DT
+                                {filters.budgetMax} DA {/* ✅ Fix #5 */}
                             </span>
                         </div>
                     </div>
                 )}
             </div>
+            <div className="border-t border-gray-200 my-4" />
 
-            <div className="border-t border-gray-200 my-4"></div>
-
-            {/* Type de chambres Section */}
+            {/* Type de chambres */}
             <div className="mb-6">
                 <button
                     onClick={() => toggleSection("chambres")}
@@ -376,10 +296,9 @@ function HotelsFiltering({ onFilterChange, initialFilters = {} }) {
                     <span className="text-base">Type de chambres</span>
                     {expandedSections.chambres ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                 </button>
-
                 {expandedSections.chambres && (
                     <div className="space-y-3 pl-1">
-                        {roomTypes.map((room) => (
+                        {ROOM_TYPES.map((room) => (
                             <label key={room.id} className="flex items-center gap-3 cursor-pointer group">
                                 <input
                                     type="checkbox"
@@ -387,22 +306,17 @@ function HotelsFiltering({ onFilterChange, initialFilters = {} }) {
                                     onChange={() => handleFilterChange("roomTypes", room.id)}
                                     className="w-4 h-4 rounded border-2 border-gray-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
                                 />
-                                <span className="text-sm text-gray-700 group-hover:text-gray-900 flex-1">
-                                    {room.label}
-                                </span>
-                                <span className="text-xs text-gray-400 font-semibold">({room.count})</span>
+                                <span className="text-sm text-gray-700 group-hover:text-gray-900 flex-1">{room.label}</span>
+                                <span className="text-xs text-gray-400 font-semibold">{room.count}</span>
                             </label>
                         ))}
-                        <button className="text-sm text-sky-600 hover:text-sky-700 font-semibold transition-colors mt-2">
-                            Suite <span className="text-orange-500">(suite 3)</span>
-                        </button>
+                        {/* ✅ Fix #7 — dead "Suite suite 3" button removed; Suite is now a proper filter entry in ROOM_TYPES */}
                     </div>
                 )}
             </div>
+            <div className="border-t border-gray-200 my-4" />
 
-            <div className="border-t border-gray-200 my-4"></div>
-
-            {/* Services Section */}
+            {/* Services */}
             <div className="mb-6">
                 <button
                     onClick={() => toggleSection("services")}
@@ -411,10 +325,9 @@ function HotelsFiltering({ onFilterChange, initialFilters = {} }) {
                     <span className="text-base">Service</span>
                     {expandedSections.services ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                 </button>
-
                 {expandedSections.services && (
-                    <div className="space-y-3 pl-1 max-h-80 overflow-y-auto">
-                        {services.map((service) => {
+                    <div className="space-y-3 pl-1 max-h-80 overflow-y-auto filter-scroll">
+                        {SERVICES.map((service) => {
                             const Icon = service.icon;
                             return (
                                 <label key={service.id} className="flex items-center gap-3 cursor-pointer group">
@@ -424,11 +337,9 @@ function HotelsFiltering({ onFilterChange, initialFilters = {} }) {
                                         onChange={() => handleFilterChange("services", service.id)}
                                         className="w-4 h-4 rounded border-2 border-gray-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
                                     />
-                                    <Icon size={16} className="text-gray-400 group-hover:text-sky-600 transition-colors" />
-                                    <span className="text-sm text-gray-700 group-hover:text-gray-900 flex-1">
-                                        {service.label}
-                                    </span>
-                                    <span className="text-xs text-gray-400 font-semibold">({service.count})</span>
+                                    <Icon size={16} className="text-gray-400 group-hover:text-sky-600 transition-colors flex-shrink-0" />
+                                    <span className="text-sm text-gray-700 group-hover:text-gray-900 flex-1">{service.label}</span>
+                                    <span className="text-xs text-gray-400 font-semibold">{service.count}</span>
                                 </label>
                             );
                         })}
@@ -436,14 +347,13 @@ function HotelsFiltering({ onFilterChange, initialFilters = {} }) {
                 )}
             </div>
 
-            {/* Apply Filters Button (Mobile) */}
+            {/* Apply Button */}
             <div className="mt-6 pt-4 border-t-2 border-sky-100">
                 <button
                     onClick={() => onFilterChange?.(filters)}
                     className="w-full py-3 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
                 >
-                    <SlidersHorizontal size={20} />
-                    Appliquer les Filtres
+                    <SlidersHorizontal size={20} /> Appliquer les Filtres
                 </button>
             </div>
         </div>

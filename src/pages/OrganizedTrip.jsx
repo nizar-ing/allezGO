@@ -1,6 +1,7 @@
-import  { useState, useEffect } from "react";
-import { useParams, Navigate } from "react-router";
-import { destinations } from "../data/data";
+// src/pages/OrganizedTrip.jsx
+import { useState, useEffect } from "react";
+import { useParams, Navigate } from "react-router-dom";
+import { destinations } from "../data";
 import {
   FaPlane,
   FaHotel,
@@ -18,13 +19,12 @@ import {
   FaChevronUp,
   FaGlobe,
   FaBed,
-
 } from "react-icons/fa";
 import { MdVerifiedUser, MdTour } from "react-icons/md";
 import Button from "../ui/Button.jsx";
 
 function OrganizedTrip() {
-  const { id } = useParams();
+  const { tripId: id } = useParams();                          // ← clean, no alias
   const [scrolled, setScrolled] = useState(false);
   const [selectedHotel, setSelectedHotel] = useState(0);
   const [expandedDay, setExpandedDay] = useState(null);
@@ -35,7 +35,10 @@ function OrganizedTrip() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const destination = destinations.find((dest) => dest.id === parseInt(id));
+  const destination = destinations.find(
+      (dest) => dest.id === parseInt(id, 10)             // ← id is defined
+  );
+
   if (!destination) return <Navigate to="/not-found" replace />;
 
   const getPricing = () => {
@@ -61,6 +64,7 @@ function OrganizedTrip() {
   return (
       <section className="min-h-screen w-full bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-50">
         <main className="max-w-6xl lg:max-w-4/5 mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-10 sm:pb-12">
+
           {/* Hero */}
           <div className="relative h-[260px] sm:h-[340px] md:h-[420px] lg:h-[500px] rounded-3xl overflow-hidden mb-8 sm:mb-10 shadow-2xl group">
             <img
@@ -68,7 +72,7 @@ function OrganizedTrip() {
                 alt={destination.name}
                 className="w-full h-full object-cover transition-all duration-700 group-hover:scale-105"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
             <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 md:p-8 text-white">
               <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
               <span className="px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-600/90 backdrop-blur-sm rounded-full text-xs sm:text-sm font-semibold flex items-center gap-1.5 sm:gap-2">
@@ -107,12 +111,14 @@ function OrganizedTrip() {
 
           {/* Main grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-            {/* Left column */}
+
+            {/* ── Left column ── */}
             <div className="lg:col-span-2 space-y-6">
+
               {/* About */}
               <div className="bg-white rounded-3xl shadow-lg hover:shadow-xl transition-all duration-300 p-5 sm:p-8 border border-gray-100">
                 <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2">
-                  <div className="w-1 h-7 sm:h-8 bg-gradient-to-b from-blue-500 to-blue-600 rounded-full"></div>
+                  <div className="w-1 h-7 sm:h-8 bg-gradient-to-b from-blue-500 to-blue-600 rounded-full" />
                   À propos de ce voyage
                 </h2>
                 <div className="prose max-w-none text-gray-600 leading-relaxed space-y-3 sm:space-y-4">
@@ -128,14 +134,11 @@ function OrganizedTrip() {
                   </p>
                   <p className="text-sm sm:text-base">
                     Au départ de{" "}
-                    <span className="font-semibold">
-                    {destination.departureFrom}
-                  </span>{" "}
+                    <span className="font-semibold">{destination.departureFrom}</span>{" "}
                     avec {destination.airline}, vous profiterez d&apos;un programme
-                    soigneusement élaboré incluant les sites les plus
-                    emblématiques, un hébergement de qualité, et
-                    l&apos;accompagnement de guides expérimentés pour enrichir
-                    votre découverte.
+                    soigneusement élaboré incluant les sites les plus emblématiques,
+                    un hébergement de qualité, et l&apos;accompagnement de guides
+                    expérimentés pour enrichir votre découverte.
                   </p>
                 </div>
               </div>
@@ -143,7 +146,7 @@ function OrganizedTrip() {
               {/* Highlights */}
               <div className="bg-white rounded-3xl shadow-lg hover:shadow-xl transition-all duration-300 p-5 sm:p-8 border border-gray-100">
                 <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2">
-                  <div className="w-1 h-7 sm:h-8 bg-gradient-to-b from-green-500 to-green-600 rounded-full"></div>
+                  <div className="w-1 h-7 sm:h-8 bg-gradient-to-b from-green-500 to-green-600 rounded-full" />
                   Points forts du voyage
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
@@ -164,7 +167,7 @@ function OrganizedTrip() {
               {/* Accommodation */}
               <div className="bg-white rounded-3xl shadow-lg hover:shadow-xl transition-all duration-300 p-5 sm:p-8 border border-gray-100">
                 <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2">
-                  <div className="w-1 h-7 sm:h-8 bg-gradient-to-b from-purple-500 to-purple-600 rounded-full"></div>
+                  <div className="w-1 h-7 sm:h-8 bg-gradient-to-b from-purple-500 to-purple-600 rounded-full" />
                   Hébergement
                 </h2>
                 <div className="space-y-3 sm:space-y-4">
@@ -221,7 +224,7 @@ function OrganizedTrip() {
               {/* Itinerary */}
               <div className="bg-white rounded-3xl shadow-lg hover:shadow-xl transition-all duration-300 p-5 sm:p-8 border border-gray-100">
                 <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2">
-                  <div className="w-1 h-7 sm:h-8 bg-gradient-to-b from-orange-500 to-orange-600 rounded-full"></div>
+                  <div className="w-1 h-7 sm:h-8 bg-gradient-to-b from-orange-500 to-orange-600 rounded-full" />
                   Programme détaillé
                 </h2>
                 <div className="space-y-3">
@@ -262,7 +265,7 @@ function OrganizedTrip() {
                                     ? "Arrivée à l'aéroport, accueil par notre équipe locale et transfert vers votre hôtel. Installation dans vos chambres et briefing sur le programme. Reste de la journée libre pour vous reposer du voyage."
                                     : day.title.includes("Départ")
                                         ? "Petit-déjeuner à l'hôtel. Selon l'horaire de votre vol, temps libre pour derniers achats. Transfert vers l'aéroport et assistance aux formalités d'embarquement. Vol retour vers l'Algérie."
-                                        : day.title.includes("libre")
+                                        : day.title.toLowerCase().includes("libre")
                                             ? "Journée complètement libre pour découvrir la destination à votre rythme. Profitez pour faire du shopping, vous détendre ou explorer les environs selon vos envies."
                                             : `Journée complète d'excursions et de découvertes. ${day.title}. Accompagnement par guide local francophone. Déjeuner libre. Retour à l'hôtel en fin d'après-midi.`}
                               </p>
@@ -277,7 +280,7 @@ function OrganizedTrip() {
               {destination.keyAttractions && (
                   <div className="bg-white rounded-3xl shadow-lg hover:shadow-xl transition-all duration-300 p-5 sm:p-8 border border-gray-100">
                     <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2">
-                      <div className="w-1 h-7 sm:h-8 bg-gradient-to-b from-blue-500 to-blue-600 rounded-full"></div>
+                      <div className="w-1 h-7 sm:h-8 bg-gradient-to-b from-blue-500 to-blue-600 rounded-full" />
                       Sites & Attractions
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -338,8 +341,9 @@ function OrganizedTrip() {
               </div>
             </div>
 
-            {/* Right column (sidebar) */}
+            {/* ── Right column (sidebar) ── */}
             <div className="lg:sticky lg:top-24 h-fit space-y-4">
+
               {/* Pricing card */}
               <div className="bg-white rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-300 p-5 sm:p-7 md:p-8 border-2 border-blue-100 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 sm:w-40 h-32 sm:h-40 bg-gradient-to-br from-blue-50 to-transparent rounded-full -mr-16 sm:-mr-20 -mt-16 sm:-mt-20 opacity-50" />
@@ -348,58 +352,56 @@ function OrganizedTrip() {
                     Tarifs & Réservation
                   </h3>
 
-                  {pricingOptions && Object.keys(pricingOptions).length > 1 && (
+                  {Object.keys(pricingOptions).length > 1 && (
                       <div className="mb-4 sm:mb-6">
                         <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-2 sm:mb-3">
                           Choisissez votre hôtel:
                         </label>
                         <div className="space-y-2">
-                          {Object.entries(pricingOptions).map(
-                              ([key, pricing], index) => (
-                                  <button
-                                      key={key}
-                                      onClick={() => setSelectedHotel(index)}
-                                      className={`w-full p-3 sm:p-4 rounded-xl text-left transition-all duration-200 ${
-                                          selectedHotel === index
-                                              ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg"
-                                              : "bg-gray-50 hover:bg-gray-100 border border-gray-200"
-                                      }`}
-                                  >
-                                    <div className="flex items-center justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <p className="font-bold text-sm sm:text-base truncate">
-                                          {pricing?.name}
-                                        </p>
-                                        {key.includes("star") && (
-                                            <div className="flex items-center gap-1 mt-1">
-                                              {Array(parseInt(key.charAt(0)))
-                                                  .fill(0)
-                                                  .map((_, i) => (
-                                                      <FaStar
-                                                          key={i}
-                                                          className={`text-[11px] sm:text-xs ${
-                                                              selectedHotel === index
-                                                                  ? "text-yellow-300"
-                                                                  : "text-yellow-400"
-                                                          }`}
-                                                      />
-                                                  ))}
-                                            </div>
-                                        )}
-                                      </div>
-                                      {selectedHotel === index && (
-                                          <FaCheckCircle className="text-lg sm:text-2xl flex-shrink-0" />
-                                      )}
-                                    </div>
-                                  </button>
-                              )
-                          )}
+                          {Object.entries(pricingOptions).map(([key, pricing], index) => (
+                              <button
+                                  key={key}
+                                  onClick={() => setSelectedHotel(index)}
+                                  className={`w-full p-3 sm:p-4 rounded-xl text-left transition-all duration-200 ${
+                                      selectedHotel === index
+                                          ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg"
+                                          : "bg-gray-50 hover:bg-gray-100 border border-gray-200"
+                                  }`}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="font-bold text-sm sm:text-base truncate">
+                                      {pricing?.name}
+                                    </p>
+                                    {key.includes("star") && (
+                                        <div className="flex items-center gap-1 mt-1">
+                                          {Array(parseInt(key.charAt(0), 10))
+                                              .fill(0)
+                                              .map((_, i) => (
+                                                  <FaStar
+                                                      key={i}
+                                                      className={`text-[11px] sm:text-xs ${
+                                                          selectedHotel === index
+                                                              ? "text-yellow-300"
+                                                              : "text-yellow-400"
+                                                      }`}
+                                                  />
+                                              ))}
+                                        </div>
+                                    )}
+                                  </div>
+                                  {selectedHotel === index && (
+                                      <FaCheckCircle className="text-lg sm:text-2xl flex-shrink-0" />
+                                  )}
+                                </div>
+                              </button>
+                          ))}
                         </div>
                       </div>
                   )}
 
                   <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-6">
-                    {/* Double room */}
+                    {/* Double */}
                     <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-center gap-2">
@@ -415,7 +417,7 @@ function OrganizedTrip() {
                       </div>
                     </div>
 
-                    {/* Single room */}
+                    {/* Single */}
                     {currentPricing.single && (
                         <div className="p-3 sm:p-4 rounded-xl bg-gray-50 border border-gray-200">
                           <div className="flex items-center justify-between">
@@ -434,7 +436,9 @@ function OrganizedTrip() {
                     {(currentPricing.child_2to5 ||
                         currentPricing.child_5to11 ||
                         currentPricing.infant ||
-                        currentPricing.child_under12) && (
+                        currentPricing.child_under12 ||
+                        currentPricing.first_child ||
+                        currentPricing.second_child) && (
                         <div className="p-3 sm:p-4 rounded-xl bg-pink-50 border border-pink-200">
                           <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
                             <FaChild className="text-pink-600" />
@@ -461,6 +465,24 @@ function OrganizedTrip() {
                             </span>
                                 </div>
                             )}
+                            {currentPricing.first_child && (
+                                <div className="flex justify-between">
+                                  <span>1er enfant:</span>
+                                  <span className="font-semibold">
+                              {currentPricing.first_child.toLocaleString()}{" "}
+                                    {destination.pricing.currency}
+                            </span>
+                                </div>
+                            )}
+                            {currentPricing.second_child && (
+                                <div className="flex justify-between">
+                                  <span>2e enfant:</span>
+                                  <span className="font-semibold">
+                              {currentPricing.second_child.toLocaleString()}{" "}
+                                    {destination.pricing.currency}
+                            </span>
+                                </div>
+                            )}
                             {currentPricing.infant && (
                                 <div className="flex justify-between">
                                   <span>Bébé:</span>
@@ -483,22 +505,19 @@ function OrganizedTrip() {
                           Dates disponibles
                         </h4>
                         <div className="space-y-2">
-                          {destination.departureDates.slice(0, 3).map(
-                              (date, index) => (
-                                  <div
-                                      key={index}
-                                      className="p-2.5 sm:p-3 rounded-xl bg-gradient-to-r from-gray-50 to-white border border-gray-200 hover:border-blue-300 transition-all duration-200"
-                                  >
-                                    <div className="flex items-center justify-between text-xs sm:text-sm">
-                              <span className="text-gray-700">
-                                {date.outbound}{" "}
-                                {date.return && `→ ${date.return}`}
-                              </span>
-                                      <FaCheckCircle className="text-green-500 flex-shrink-0" />
-                                    </div>
-                                  </div>
-                              )
-                          )}
+                          {destination.departureDates.slice(0, 3).map((date, index) => (
+                              <div
+                                  key={index}
+                                  className="p-2.5 sm:p-3 rounded-xl bg-gradient-to-r from-gray-50 to-white border border-gray-200 hover:border-blue-300 transition-all duration-200"
+                              >
+                                <div className="flex items-center justify-between text-xs sm:text-sm">
+                            <span className="text-gray-700">
+                              {date.outbound}{date.return && ` → ${date.return}`}
+                            </span>
+                                  <FaCheckCircle className="text-green-500 flex-shrink-0" />
+                                </div>
+                              </div>
+                          ))}
                         </div>
                       </div>
                   )}
@@ -512,8 +531,7 @@ function OrganizedTrip() {
                           Garantie & Sécurité
                         </h4>
                         <p className="text-xs sm:text-sm text-green-700 leading-relaxed">
-                          Départ garanti • Assurance voyage incluse • Paiement
-                          sécurisé
+                          Départ garanti • Assurance voyage incluse • Paiement sécurisé
                         </p>
                       </div>
                     </div>
@@ -545,8 +563,7 @@ function OrganizedTrip() {
                       Besoin d&apos;aide ?
                     </h3>
                     <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">
-                      Notre équipe est disponible 24/7 pour répondre à vos
-                      questions.
+                      Notre équipe est disponible 24/7 pour répondre à vos questions.
                     </p>
                   </div>
                 </div>
@@ -557,6 +574,7 @@ function OrganizedTrip() {
                   Contacter le support
                 </Button>
               </div>
+
             </div>
           </div>
         </main>

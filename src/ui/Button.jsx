@@ -1,3 +1,4 @@
+// src/ui/Button.jsx
 import { useState } from 'react';
 
 const Button = ({
@@ -38,7 +39,8 @@ const Button = ({
 
     return (
         <button
-            className={`${baseClasses} ${variantClasses[variant]} ${variantClasses[variant] === 'pill' ? "" : sizeClasses[size]} ${className} ${isPressed ? 'scale-95' : ''}`}
+            // ✅ Fixed: compare variant prop directly instead of variantClasses[variant]
+            className={`${baseClasses} ${variantClasses[variant]} ${variant === 'pill' ? '' : sizeClasses[size]} ${className} ${isPressed ? 'scale-95' : ''}`}
             disabled={disabled || loading}
             onClick={onClick}
             onMouseDown={handleMouseDown}
