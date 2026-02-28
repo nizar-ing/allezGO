@@ -1,8 +1,9 @@
 // src/components/BookingHotels.jsx
-import { useState, useTransition, useCallback } from 'react';
+import { useState, useTransition, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useQuery } from '@tanstack/react-query';
 
 import Button from "../../ui/Button.jsx";
 import LocationSearch from './LocationSearch';
@@ -10,15 +11,61 @@ import DateRangePicker from './DateRangePicker';
 import GuestRoomSelector from './GuestRoomSelector';
 import { formatDateForAPI, calculateNights } from '../../utils/dateHelpers';
 
+import apiClient from "../../services/ApiClient.js";
+
+const DEFAULT_CITY_ID = 34; // Sousse
+
+const getDefaultRange = () => {
+    // one night from today -> tomorrow (both at midnight)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    return { from: today, to: tomorrow };
+};
+
 function BookingHotels() {
     const navigate = useNavigate();
     const [isPending, startTransition] = useTransition();
 
-    const [selectedCity,  setSelectedCity]  = useState(null);
+    const [selectedCity, setSelectedCity] = useState(null);
     const [selectedHotel, setSelectedHotel] = useState(null);
-    const [selectionType, setSelectionType] = useState(null);
-    const [range,         setRange]         = useState({ from: null, to: null });
-    const [rooms,         setRooms]         = useState([{ id: 1, adults: 2, children: [] }]);
+
+    // default is city search since we default a city
+    const [selectionType, setSelectionType] = useState('city');
+
+    // default: today -> tomorrow
+    const [range, setRange] = useState(getDefaultRange);
+
+    const [rooms, setRooms] = useState([{ id: 1, adults: 2, children: [] }]);
+
+    // ✅ FIX: ensure default city is applied only once (won’t fight user focus/typing)
+    const defaultCityAppliedRef = useRef(false);
+
+    // Fetch cities to set the real "Sousse" object (full shape)
+    const { data: citiesData } = useQuery({
+        queryKey: ['cities'],
+        queryFn: () => apiClient.listCity(),
+        staleTime: 10 * 60 * 1000,
+    });
+
+    const defaultCity = useMemo(() => {
+        if (!Array.isArray(citiesData)) return null;
+        return citiesData.find(c => c?.Id === DEFAULT_CITY_ID) ?? null;
+    }, [citiesData]);
+
+    // ✅ Apply default city once (never override user control on focus / edits)
+    useEffect(() => {
+        if (!defaultCity) return;
+        if (defaultCityAppliedRef.current) return;
+
+        defaultCityAppliedRef.current = true;
+        setSelectedCity(defaultCity);
+        setSelectedHotel(null);
+        setSelectionType('city');
+    }, [defaultCity]);
 
     const handleCitySelect = useCallback((city) => {
         setSelectedCity(city);
@@ -67,58 +114,55 @@ function BookingHotels() {
     const handleSearch = useCallback(() => {
         if (!validateSearch()) return;
 
-        const checkInFormatted  = formatDateForAPI(range.from);
+        const checkInFormatted = formatDateForAPI(range.from);
         const checkOutFormatted = formatDateForAPI(range.to);
-        const nights            = calculateNights(range.from, range.to);
+        const nights = calculateNights(range.from, range.to);
 
         const searchParams = new URLSearchParams();
         searchParams.append('selectionType', selectionType);
 
         if (selectionType === 'city') {
-            searchParams.append('cityId',   selectedCity.Id);
+            searchParams.append('cityId', selectedCity.Id);
             searchParams.append('cityName', selectedCity.Name);
             if (selectedCity.Country?.Name) {
                 searchParams.append('countryName', selectedCity.Country.Name);
             }
         } else if (selectionType === 'hotel') {
-            searchParams.append('hotelId',   selectedHotel.Id);
+            searchParams.append('hotelId', selectedHotel.Id);
             searchParams.append('hotelName', selectedHotel.Name);
-            if (selectedHotel.City?.Id)   searchParams.append('cityId',   selectedHotel.City.Id);
+            if (selectedHotel.City?.Id) searchParams.append('cityId', selectedHotel.City.Id);
             if (selectedHotel.City?.Name) searchParams.append('cityName', selectedHotel.City.Name);
         }
 
-        searchParams.append('checkIn',  checkInFormatted);
+        searchParams.append('checkIn', checkInFormatted);
         searchParams.append('checkOut', checkOutFormatted);
 
-        // ✅ Fix #1 — children serialized as age numbers (consistent with HotelLightCard)
+        // children serialized as age numbers
         const roomsData = rooms.map(room => ({
-            adults:   room.adults,
+            adults: room.adults,
             children: room.children.map(child => child.age), // number[]
         }));
 
-        searchParams.append('rooms',  JSON.stringify(roomsData));
+        searchParams.append('rooms', JSON.stringify(roomsData));
         searchParams.append('nights', nights);
 
         if (import.meta.env.DEV) {
             console.log('🔍 Search Params:', {
                 selectionType,
-                cityId:   selectedCity?.Id,
-                hotelId:  selectedHotel?.Id,
-                checkIn:  checkInFormatted,
+                cityId: selectedCity?.Id,
+                hotelId: selectedHotel?.Id,
+                checkIn: checkInFormatted,
                 checkOut: checkOutFormatted,
-                rooms:    roomsData,
+                rooms: roomsData,
                 nights,
             });
         }
 
-        // ✅ Fix #3 — toast.loading OUTSIDE startTransition (it's a side effect)
         toast.loading("Recherche en cours...", { id: 'search-loading', duration: 2000 });
 
-        // ✅ Fix #4 — only navigate() inside startTransition
         startTransition(() => {
             navigate(`/search?${searchParams.toString()}`);
         });
-
     }, [validateSearch, range, selectionType, selectedCity, selectedHotel, rooms, navigate]);
 
     return (
@@ -149,13 +193,13 @@ function BookingHotels() {
                         disabled={isPending}
                         className="w-full lg:w-auto bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition-colors font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                        <span className="flex justify-center items-center gap-2 px-4">
-                            {isPending
-                                ? <Loader2 size={20} className="animate-spin" />
-                                : <Search size={20} />
-                            }
-                            {isPending ? 'Recherche...' : 'Rechercher'}
-                        </span>
+            <span className="flex justify-center items-center gap-2 px-4">
+              {isPending
+                  ? <Loader2 size={20} className="animate-spin" />
+                  : <Search size={20} />
+              }
+                {isPending ? 'Recherche...' : 'Rechercher'}
+            </span>
                     </Button>
 
                 </div>

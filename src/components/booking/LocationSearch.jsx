@@ -1,5 +1,5 @@
 // src/components/LocationSearch.jsx
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { MapPin, X, Hotel, Globe, ChevronRight, AlertCircle } from 'lucide-react';
 import { useCities, useHotels } from '../../custom-hooks/useHotelQueries';
 import useDebounce from '../../custom-hooks/useDebounce';
@@ -11,11 +11,12 @@ function LocationSearch({
                             onHotelSelect,
                             onClear,
                         }) {
-    const [inputValue,       setInputValue]       = useState('');
+    const [inputValue, setInputValue] = useState('');
     const [showCityDropdown, setShowCityDropdown] = useState(false);
     const [highlightedIndex, setHighlightedIndex] = useState(-1);
+    const [isEditing, setIsEditing] = useState(false);
 
-    const cityDropdownRef  = useRef(null);
+    const cityDropdownRef = useRef(null);
     const locationInputRef = useRef(null);
 
     const { data: cities, isLoading: citiesLoading, error: citiesError } = useCities();
@@ -28,22 +29,32 @@ function LocationSearch({
         }
     }, [cities, hotels]);
 
-    // ✅ Derived state — no useEffect needed, no setState cascade
-    const location = useMemo(() => {
+    const selectionLabel = useMemo(() => {
         if (selectedCity) {
-            const cityName    = selectedCity.Name || '';
+            const cityName = selectedCity.Name || '';
             const countryName = selectedCity.Country?.Name || '';
             return `${cityName}${countryName ? `, ${countryName}` : ''}`;
         }
         if (selectedHotel) {
             const hotelName = selectedHotel.Name || '';
-            const cityName  = selectedHotel.City?.Name || '';
+            const cityName = selectedHotel.City?.Name || '';
             return `${hotelName}${cityName ? `, ${cityName}` : ''}`;
         }
-        return inputValue;
-    }, [selectedCity, selectedHotel, inputValue]);
+        return '';
+    }, [selectedCity, selectedHotel]);
 
-    // ✅ Only debounce what the user types — not the selection display
+    // ✅ CORE FIX: single source of truth
+    // inputValue is always what the input shows.
+    // When not editing, keep it in sync with selectionLabel automatically.
+    // This prevents the "ghost label" problem where inputValue is '' but
+    // the input visually shows selectionLabel — causing typing to insert
+    // characters into the label text instead of replacing it.
+    useLayoutEffect(() => {
+        if (!isEditing) {
+            setInputValue(selectionLabel);
+        }
+    }, [selectionLabel, isEditing]);
+
     const debouncedSearch = useDebounce(inputValue, 300);
 
     const { combinedResults, citiesCount, hotelsCount } = useMemo(() => {
@@ -55,16 +66,21 @@ function LocationSearch({
             return { combinedResults: results, citiesCount: citySlice.length, hotelsCount: 0 };
         }
 
-        const searchLower = debouncedSearch.toLowerCase().trim();
+        const searchLower = debouncedSearch
+            .toLowerCase()
+            .replace(/^\s+/, '')
+            .replace(/\s{2,}/g, ' ');
 
         const filteredCities = (cities || [])
             .filter(city => {
-                const cityName    = city.Name?.toLowerCase()          || '';
+                const cityName = city.Name?.toLowerCase() || '';
                 const countryName = city.Country?.Name?.toLowerCase() || '';
-                const regionName  = city.Region?.toLowerCase()        || '';
-                return cityName.includes(searchLower)    ||
+                const regionName = city.Region?.toLowerCase() || '';
+                return (
+                    cityName.includes(searchLower) ||
                     countryName.includes(searchLower) ||
-                    regionName.includes(searchLower);
+                    regionName.includes(searchLower)
+                );
             })
             .slice(0, 5);
 
@@ -72,12 +88,14 @@ function LocationSearch({
 
         const filteredHotels = (hotels || [])
             .filter(hotel => {
-                const hotelName   = hotel.Name?.toLowerCase()               || '';
-                const cityName    = hotel.City?.Name?.toLowerCase()          || '';
+                const hotelName = hotel.Name?.toLowerCase() || '';
+                const cityName = hotel.City?.Name?.toLowerCase() || '';
                 const countryName = hotel.City?.Country?.Name?.toLowerCase() || '';
-                return hotelName.includes(searchLower)   ||
-                    cityName.includes(searchLower)    ||
-                    countryName.includes(searchLower);
+                return (
+                    hotelName.includes(searchLower) ||
+                    cityName.includes(searchLower) ||
+                    countryName.includes(searchLower)
+                );
             })
             .slice(0, 5);
 
@@ -85,24 +103,24 @@ function LocationSearch({
 
         return {
             combinedResults: results,
-            citiesCount:     filteredCities.length,
-            hotelsCount:     filteredHotels.length,
+            citiesCount: filteredCities.length,
+            hotelsCount: filteredHotels.length,
         };
     }, [cities, hotels, debouncedSearch]);
 
-    // Click outside
+    // Click outside: stop editing → useLayoutEffect syncs inputValue back to selectionLabel
     useEffect(() => {
         function handleClickOutside(event) {
             if (cityDropdownRef.current && !cityDropdownRef.current.contains(event.target)) {
                 setShowCityDropdown(false);
                 setHighlightedIndex(-1);
+                setIsEditing(false); // triggers useLayoutEffect to restore label
             }
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // Keyboard scroll into view
     useEffect(() => {
         if (highlightedIndex >= 0 && cityDropdownRef.current) {
             cityDropdownRef.current
@@ -114,28 +132,32 @@ function LocationSearch({
     // ── Handlers ───────────────────────────────────────────────────────────────
 
     const handleLocationChange = useCallback((e) => {
-        setInputValue(e.target.value);
-        onClear();
+        const next = e.target.value;
+        setInputValue(next);
+        setIsEditing(true);
+        if (selectedCity || selectedHotel) {
+            onClear();
+        }
         setShowCityDropdown(true);
         setHighlightedIndex(-1);
-    }, [onClear]);
+    }, [onClear, selectedCity, selectedHotel]);
 
     const handleCitySelect = useCallback((city) => {
-        setInputValue('');
+        setIsEditing(false); // triggers useLayoutEffect → inputValue = new city label
         onCitySelect(city);
         setShowCityDropdown(false);
         setHighlightedIndex(-1);
     }, [onCitySelect]);
 
     const handleHotelSelect = useCallback((hotel) => {
-        setInputValue('');
+        setIsEditing(false); // triggers useLayoutEffect → inputValue = new hotel label
         onHotelSelect(hotel);
         setShowCityDropdown(false);
         setHighlightedIndex(-1);
     }, [onHotelSelect]);
 
     const handleClearLocation = useCallback(() => {
-        setInputValue('');
+        setIsEditing(false);
         onClear();
         setShowCityDropdown(false);
         setHighlightedIndex(-1);
@@ -167,13 +189,12 @@ function LocationSearch({
             case 'Escape':
                 setShowCityDropdown(false);
                 setHighlightedIndex(-1);
+                setIsEditing(false); // triggers useLayoutEffect to restore label
                 break;
             default:
                 break;
         }
     }, [showCityDropdown, combinedResults, highlightedIndex, handleCitySelect, handleHotelSelect]);
-
-    // ── Render ─────────────────────────────────────────────────────────────────
 
     return (
         <div className="relative" ref={cityDropdownRef}>
@@ -183,23 +204,30 @@ function LocationSearch({
                     ref={locationInputRef}
                     type="text"
                     placeholder="Ville ou hôtel..."
-                    value={location}
+                    value={inputValue}
                     onChange={handleLocationChange}
                     onKeyDown={handleLocationKeyDown}
-                    onFocus={() => setShowCityDropdown(true)}
+                    onFocus={() => {
+                        setShowCityDropdown(true);
+                        setIsEditing(true);
+                        // inputValue already equals selectionLabel (set by useLayoutEffect).
+                        // Select all so the first keystroke replaces it cleanly.
+                        requestAnimationFrame(() => {
+                            locationInputRef.current?.select();
+                        });
+                    }}
                     className="flex-1 outline-none text-gray-800 text-sm placeholder-gray-500"
                     autoComplete="off"
                 />
-                {location && (
+                {inputValue && (
                     <button onClick={handleClearLocation} className="text-gray-400 hover:text-gray-700">
                         <X size={20} />
                     </button>
                 )}
             </div>
 
-            {showCityDropdown && location && (
+            {showCityDropdown && (inputValue || isEditing) && (
                 <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl z-50 border border-gray-100 max-h-[400px] overflow-hidden animate-slideDown">
-
                     {(citiesLoading || hotelsLoading) && (
                         <div className="p-6 text-center">
                             <div className="flex flex-col items-center justify-center gap-3">
@@ -306,58 +334,58 @@ function LocationSearch({
                                                 </div>
                                             </li>
                                         );
-                                    } else {
-                                        const hotel = result.data;
-                                        return (
-                                            <li
-                                                key={`hotel-${hotel.Id}`}
-                                                data-index={index}
-                                                onClick={() => handleHotelSelect(hotel)}
-                                                className={`px-4 py-3 cursor-pointer transition-all duration-200 border-l-4 mx-2 rounded-lg my-1 ${
-                                                    isHighlighted
-                                                        ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-500 shadow-sm scale-[1.02]'
-                                                        : 'border-transparent hover:bg-gray-50 hover:border-gray-300'
-                                                }`}
-                                            >
-                                                <div className="flex items-start gap-3">
-                                                    <div className={`mt-0.5 p-2 rounded-lg transition-all duration-200 ${
-                                                        isHighlighted ? 'bg-amber-100 scale-110' : 'bg-gray-100'
-                                                    }`}>
-                                                        <Hotel
-                                                            size={18}
-                                                            className={`transition-colors duration-200 ${
-                                                                isHighlighted ? 'text-amber-600' : 'text-gray-400'
-                                                            }`}
-                                                        />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2 mb-0.5">
-                                                            <span className={`font-semibold text-sm transition-colors duration-200 ${
-                                                                isHighlighted ? 'text-amber-700' : 'text-gray-800'
-                                                            }`}>
-                                                                {hotel.Name || ''}
-                                                            </span>
-                                                            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
-                                                                Hôtel
-                                                            </span>
-                                                        </div>
-                                                        {hotel.Category?.Star && (
-                                                            <div className="flex items-center gap-1.5 text-xs text-amber-600 mb-0.5">
-                                                                <span>⭐ {hotel.Category.Star} étoiles</span>
-                                                            </div>
-                                                        )}
-                                                        <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                                                            <MapPin size={12} />
-                                                            <span className="truncate">{hotel.City?.Name || ''}</span>
-                                                        </div>
-                                                    </div>
-                                                    {isHighlighted && (
-                                                        <ChevronRight size={20} className="mt-1 text-amber-600 animate-pulse" />
-                                                    )}
-                                                </div>
-                                            </li>
-                                        );
                                     }
+
+                                    const hotel = result.data;
+                                    return (
+                                        <li
+                                            key={`hotel-${hotel.Id}`}
+                                            data-index={index}
+                                            onClick={() => handleHotelSelect(hotel)}
+                                            className={`px-4 py-3 cursor-pointer transition-all duration-200 border-l-4 mx-2 rounded-lg my-1 ${
+                                                isHighlighted
+                                                    ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-500 shadow-sm scale-[1.02]'
+                                                    : 'border-transparent hover:bg-gray-50 hover:border-gray-300'
+                                            }`}
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                <div className={`mt-0.5 p-2 rounded-lg transition-all duration-200 ${
+                                                    isHighlighted ? 'bg-amber-100 scale-110' : 'bg-gray-100'
+                                                }`}>
+                                                    <Hotel
+                                                        size={18}
+                                                        className={`transition-colors duration-200 ${
+                                                            isHighlighted ? 'text-amber-600' : 'text-gray-400'
+                                                        }`}
+                                                    />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-0.5">
+                                                        <span className={`font-semibold text-sm transition-colors duration-200 ${
+                                                            isHighlighted ? 'text-amber-700' : 'text-gray-800'
+                                                        }`}>
+                                                            {hotel.Name || ''}
+                                                        </span>
+                                                        <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
+                                                            Hôtel
+                                                        </span>
+                                                    </div>
+                                                    {hotel.Category?.Star && (
+                                                        <div className="flex items-center gap-1.5 text-xs text-amber-600 mb-0.5">
+                                                            <span>⭐ {hotel.Category.Star} étoiles</span>
+                                                        </div>
+                                                    )}
+                                                    <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                                        <MapPin size={12} />
+                                                        <span className="truncate">{hotel.City?.Name || ''}</span>
+                                                    </div>
+                                                </div>
+                                                {isHighlighted && (
+                                                    <ChevronRight size={20} className="mt-1 text-amber-600 animate-pulse" />
+                                                )}
+                                            </div>
+                                        </li>
+                                    );
                                 })}
                             </ul>
                         </div>

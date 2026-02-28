@@ -14,7 +14,7 @@ import apiClient from '../services/ApiClient';
 import HotelsFiltering from '../components/HotelsFiltering.jsx';
 import HotelLightCard from '../components/HotelLightCard.jsx';
 import Loader from '../ui/Loader.jsx';
-import {normalizeHotelForCard} from '../utils/normalizeHotel'; // ✅ NEW
+import {normalizeHotelForCard} from '../utils/normalizeHotel';
 
 // ── Pure utilities ─────────────────────────────────────────────────────────────
 const getDefaultDates = () => {
@@ -67,7 +67,7 @@ function HotelsPerCityPage() {
 
     // ── Step 1 — Fetch hotels ──────────────────────────────────────────────────
     const {
-        data:    allHotelsData,
+        data:      allHotelsData,
         isLoading: isLoadingAll,
         isError:   isErrorAll,
         error:     errorAll,
@@ -77,8 +77,9 @@ function HotelsPerCityPage() {
             await apiClient.listHotelEnhanced(cityId, {
                 batchSize:           5,
                 delayBetweenBatches: 150,
-                onProgress:          (current, total) => {
-                    if (import.meta.env.DEV) console.log(`Loading hotels ${current}/${total}`);
+                onProgress: (current, total) => {
+                    if (import.meta.env.DEV)
+                        console.log(`Loading hotels ${current}/${total}`);
                 },
             }),
         enabled:   !!cityId,
@@ -86,22 +87,25 @@ function HotelsPerCityPage() {
         retry:     2,
     });
 
-    // ── Step 2 — Fetch pricing ─────────────────────────────────────────────────
+    // ── Step 2 — Fetch pricing + extract preloaded room availability ───────────
+    // ✅ Enhanced: pricingMap now includes `rooms[]` per hotel so HotelLightCard
+    //    can render the Tarifs panel instantly without a second API call.
     const {
-        data:    pricingData,
+        data:      pricingData,
         isLoading: isLoadingPricing,
         isError:   isErrorPricing,
     } = useQuery({
         queryKey: ['hotel-pricing', cityId,
             searchParams.checkIn, searchParams.checkOut, searchParams.rooms],
         queryFn:  async () => {
-            if (!allHotelsData || !searchParams.checkIn || !searchParams.checkOut) return null;
+            if (!allHotelsData || !searchParams.checkIn || !searchParams.checkOut)
+                return null;
+
             const hotelIds = allHotelsData.map(h => h.Id);
             const result   = await apiClient.searchHotel({
                 checkIn:  searchParams.checkIn,
                 checkOut: searchParams.checkOut,
                 hotels:   hotelIds,
-                // ✅ consistent rooms shape — childAges array like other pages
                 rooms: searchParams.rooms.map(room => ({
                     adult:     room.adults,
                     child:     room.children.length,
@@ -109,31 +113,55 @@ function HotelsPerCityPage() {
                 })),
                 filters: {keywords: '', category: '', onlyAvailable: true, tags: ''},
             });
+
             const pricingMap = {};
+
             result.hotelSearch.forEach(item => {
                 const allPrices = [];
-                item.Price?.Boarding?.forEach(boarding =>
-                    boarding.Pax?.forEach(pax =>
+
+                // ✅ Deduplicated room list keyed by boardingCode + roomCode
+                const roomMap = new Map();
+
+                item.Price?.Boarding?.forEach(boarding => {
+                    boarding.Pax?.forEach(pax => {
                         pax.Rooms?.forEach(room => {
-                            if (room.Price) allPrices.push(parseFloat(room.Price));
-                        })
-                    )
-                );
+                            const price = room.Price ? parseFloat(room.Price) : null;
+                            if (price) allPrices.push(price);
+
+                            // Dedup: same room can appear across multiple Pax entries
+                            const roomKey = `${boarding.Code}__${room.Code ?? room.Id ?? ''}`;
+                            if (!roomMap.has(roomKey)) {
+                                roomMap.set(roomKey, {
+                                    id:           room.Id   ?? roomKey,
+                                    name:         room.Name ?? room.Code ?? 'Chambre',
+                                    boardingCode: boarding.Code,
+                                    boardingName: boarding.Name,
+                                    price,
+                                    currency:     item.Currency,
+                                });
+                            }
+                        });
+                    });
+                });
+
                 pricingMap[item.Hotel.Id] = {
                     minPrice:  allPrices.length > 0 ? Math.min(...allPrices) : null,
                     maxPrice:  allPrices.length > 0 ? Math.max(...allPrices) : null,
                     currency:  item.Currency,
                     available: true,
                     token:     item.Token,
+                    // ✅ Pre-built rooms — consumed by HotelLightCard as preloadedAvailability
+                    rooms:     Array.from(roomMap.values()),
                 };
             });
+
             return pricingMap;
         },
         enabled:   !!allHotelsData && !!searchParams.checkIn && !!searchParams.checkOut,
         staleTime: 2 * 60 * 1000,
     });
 
-    // ── Cities (for banner info) ───────────────────────────────────────────────
+    // ── Cities ─────────────────────────────────────────────────────────────────
     const {data: citiesData} = useQuery({
         queryKey: ['cities'],
         queryFn:  async () => apiClient.listCity(),
@@ -151,7 +179,6 @@ function HotelsPerCityPage() {
     }, [isErrorPricing]);
 
     // ── Derived data ───────────────────────────────────────────────────────────
-    // ✅ normalizeHotelForCard → Album always string[], Image always URL string
     const hotelsWithPricing = useMemo(() => {
         if (!allHotelsData) return [];
         return allHotelsData.map(hotel =>
@@ -217,7 +244,7 @@ function HotelsPerCityPage() {
     const hasNextPage     = displayCount < sortedHotels.length;
     const loadMore        = () => setDisplayCount(prev => prev + HOTELS_PER_PAGE);
 
-    // Intersection observer
+    // Intersection observer for infinite scroll
     useEffect(() => {
         if (!loadMoreRef.current || !hasNextPage) return;
         const el       = loadMoreRef.current;
@@ -321,8 +348,7 @@ function HotelsPerCityPage() {
         if (n < 1 || n > 6) return;
         setTempSearchParams(prev => ({
             ...prev,
-            rooms: prev.rooms.map((room, i) =>
-                i === index ? {...room, adults: n} : room),
+            rooms: prev.rooms.map((room, i) => i === index ? {...room, adults: n} : room),
         }));
     };
 
@@ -373,13 +399,12 @@ function HotelsPerCityPage() {
 
     const sortOptions = [
         {value: 'recommended', label: 'Recommandés'},
-        {value: 'price-asc',   label: 'Prix croissant',  disabled: !pricingData},
-        {value: 'price-desc',  label: 'Prix décroissant', disabled: !pricingData},
+        {value: 'price-asc',   label: 'Prix croissant',   disabled: !pricingData},
+        {value: 'price-desc',  label: 'Prix décroissant',  disabled: !pricingData},
         {value: 'rating',      label: 'Meilleures notes'},
         {value: 'name-asc',    label: 'Nom A-Z'},
     ];
 
-    // ✅ Album[0] is always a plain URL string after normalization
     const getBannerImage = () => {
         if (displayedHotels.length > 0 && displayedHotels[0].Album?.[0])
             return displayedHotels[0].Album[0];
@@ -398,7 +423,8 @@ function HotelsPerCityPage() {
             {weekday: 'short', day: 'numeric', month: 'short'});
     };
 
-    // ✅ Hotels already normalized — no extra work in the memoized card list
+    // ✅ preloadedAvailability passed from pricing.rooms — HotelLightCard renders
+    //    the Tarifs panel instantly without firing a second API call
     const hotelCards = useMemo(() =>
             displayedHotels.map(hotel => (
                 <HotelLightCard
@@ -406,6 +432,7 @@ function HotelsPerCityPage() {
                     hotel={hotel}
                     onFavoriteToggle={handleFavoriteToggle}
                     pricing={hotel.pricing}
+                    preloadedAvailability={hotel.pricing?.rooms ?? null}
                     onBook={handleBookHotel}
                     onViewDetail={handleViewHotelDetail}
                     showBookButton={true}
@@ -606,9 +633,7 @@ function HotelsPerCityPage() {
 
                                                 {/* Adults */}
                                                 <div className="mb-3">
-                                                    <label className="text-xs text-gray-600 font-semibold mb-1.5 block uppercase tracking-wide">
-                                                        Adultes
-                                                    </label>
+                                                    <label className="text-xs text-gray-600 font-semibold mb-1.5 block uppercase tracking-wide">Adultes</label>
                                                     <div className="flex items-center gap-2">
                                                         <button
                                                             onClick={() => handleUpdateRoomAdults(index, room.adults - 1)}
@@ -635,9 +660,7 @@ function HotelsPerCityPage() {
                                                 {/* Children */}
                                                 <div>
                                                     <div className="flex items-center justify-between mb-2">
-                                                        <label className="text-xs text-gray-600 font-semibold uppercase tracking-wide">
-                                                            Enfants (1–11 ans)
-                                                        </label>
+                                                        <label className="text-xs text-gray-600 font-semibold uppercase tracking-wide">Enfants (1–11 ans)</label>
                                                         <button
                                                             onClick={() => handleAddChild(index)}
                                                             disabled={room.children.length >= 4}
@@ -648,16 +671,12 @@ function HotelsPerCityPage() {
                                                         </button>
                                                     </div>
                                                     {room.children.length === 0 ? (
-                                                        <p className="text-xs text-gray-400 italic py-2 text-center bg-gray-50 rounded-lg">
-                                                            Aucun enfant
-                                                        </p>
+                                                        <p className="text-xs text-gray-400 italic py-2 text-center bg-gray-50 rounded-lg">Aucun enfant</p>
                                                     ) : (
                                                         <div className="space-y-2">
                                                             {room.children.map((childAge, childIndex) => (
                                                                 <div key={childIndex} className="flex items-center gap-2 p-2 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
-                                                                    <span className="text-xs text-gray-700 font-semibold min-w-[60px]">
-                                                                        Enfant {childIndex + 1}
-                                                                    </span>
+                                                                    <span className="text-xs text-gray-700 font-semibold min-w-[60px]">Enfant {childIndex + 1}</span>
                                                                     <select
                                                                         value={childAge}
                                                                         onChange={e => handleUpdateChildAge(index, childIndex, e.target.value)}
@@ -685,7 +704,6 @@ function HotelsPerCityPage() {
                                         ))}
                                     </div>
 
-                                    {/* Add room */}
                                     {tempSearchParams.rooms.length < 5 && (
                                         <button
                                             onClick={handleAddRoom}
@@ -729,9 +747,7 @@ function HotelsPerCityPage() {
                             <AlertCircle className="text-red-600 flex-shrink-0" size={24}/>
                             <div className="flex-1">
                                 <p className="font-semibold text-red-800">Erreur lors de la recherche des prix</p>
-                                <p className="text-sm text-red-600">
-                                    Impossible de récupérer les prix pour les dates sélectionnées.
-                                </p>
+                                <p className="text-sm text-red-600">Impossible de récupérer les prix pour les dates sélectionnées.</p>
                             </div>
                             <button
                                 onClick={handleSearchPricing}
@@ -761,7 +777,6 @@ function HotelsPerCityPage() {
                             </div>
                         </div>
                         <div className="flex items-center gap-2 sm:gap-3 flex-wrap w-full sm:w-auto">
-                            {/* Mobile filter button */}
                             <button
                                 onClick={() => setShowFilters(!showFilters)}
                                 className="lg:hidden flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-sm sm:text-base font-semibold rounded-lg sm:rounded-xl transition-all shadow-md active:scale-95 flex-1 sm:flex-initial justify-center"
@@ -769,7 +784,6 @@ function HotelsPerCityPage() {
                                 <Filter size={18}/>
                                 <span className="hidden xs:inline">Filtres</span>
                             </button>
-                            {/* Sort */}
                             <div className="relative flex-1 sm:flex-initial min-w-[140px] sm:min-w-[160px]">
                                 <select
                                     value={sortBy}
@@ -791,7 +805,7 @@ function HotelsPerCityPage() {
                 {/* Main Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
 
-                    {/* Sidebar (desktop) */}
+                    {/* Sidebar */}
                     <aside className="hidden lg:block lg:col-span-3 xl:col-span-1">
                         <div className="sticky top-32 lg:top-28">
                             <HotelsFiltering
@@ -805,13 +819,10 @@ function HotelsPerCityPage() {
                     {/* Hotels list */}
                     <main className="lg:col-span-9 xl:col-span-3">
 
-                        {/* Error */}
                         {isErrorAll && (
                             <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl p-6 sm:p-8 lg:p-12 text-center">
                                 <AlertCircle size={48} className="sm:w-16 sm:h-16 mx-auto text-red-500 mb-3 sm:mb-4"/>
-                                <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2 sm:mb-3">
-                                    Erreur de chargement
-                                </h3>
+                                <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2 sm:mb-3">Erreur de chargement</h3>
                                 <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 px-4">
                                     {errorAll?.message ?? 'Impossible de charger les hôtels. Veuillez réessayer.'}
                                 </p>
@@ -824,13 +835,10 @@ function HotelsPerCityPage() {
                             </div>
                         )}
 
-                        {/* Empty */}
                         {!isLoadingAll && !isErrorAll && sortedHotels.length === 0 && (
                             <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl p-6 sm:p-8 lg:p-12 text-center">
                                 <Search size={48} className="sm:w-16 sm:h-16 mx-auto text-gray-300 mb-3 sm:mb-4"/>
-                                <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2 sm:mb-3">
-                                    Aucun hôtel trouvé
-                                </h3>
+                                <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2 sm:mb-3">Aucun hôtel trouvé</h3>
                                 <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 px-4">
                                     Essayez de modifier vos filtres ou critères de recherche.
                                 </p>
@@ -843,14 +851,12 @@ function HotelsPerCityPage() {
                             </div>
                         )}
 
-                        {/* Hotel cards */}
                         {!isLoadingAll && !isErrorAll && displayedHotels.length > 0 && (
                             <div className="space-y-3 sm:space-y-4 lg:space-y-6">
                                 {hotelCards}
                             </div>
                         )}
 
-                        {/* Load more */}
                         {hasNextPage && (
                             <div ref={loadMoreRef} className="mt-6 sm:mt-8">
                                 <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg flex justify-center p-4">
@@ -865,15 +871,12 @@ function HotelsPerCityPage() {
                             </div>
                         )}
 
-                        {/* End of results */}
                         {!hasNextPage && displayedHotels.length > 0 && (
                             <div className="text-center py-6 sm:py-8 mt-4 sm:mt-6">
                                 <div className="inline-flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg sm:rounded-xl shadow-md max-w-full mx-2">
                                     <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 flex-shrink-0"/>
                                     <div className="text-left">
-                                        <p className="text-gray-800 font-bold text-sm sm:text-base lg:text-lg">
-                                            Tous les hôtels affichés !
-                                        </p>
+                                        <p className="text-gray-800 font-bold text-sm sm:text-base lg:text-lg">Tous les hôtels affichés !</p>
                                         <p className="text-gray-600 text-xs sm:text-sm">
                                             Vous avez vu les {sortedHotels.length} hôtel{sortedHotels.length > 1 ? 's' : ''} disponible{sortedHotels.length > 1 ? 's' : ''}
                                         </p>
@@ -909,15 +912,11 @@ function HotelsPerCityPage() {
                             <button
                                 onClick={() => { setFilters({}); setShowFilters(false); }}
                                 className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-all active:scale-95"
-                            >
-                                Réinitialiser
-                            </button>
+                            >Réinitialiser</button>
                             <button
                                 onClick={() => setShowFilters(false)}
                                 className="flex-1 px-4 py-3 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-xl transition-all shadow-md active:scale-95"
-                            >
-                                Appliquer
-                            </button>
+                            >Appliquer</button>
                         </div>
                     </div>
                 </div>
@@ -928,7 +927,7 @@ function HotelsPerCityPage() {
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
                     <div className="bg-white rounded-2xl p-8 shadow-2xl max-w-md mx-4">
                         <Loader
-                            message="Recherche des prix..."
+                            message="Recherche des prix et disponibilités..."
                             submessage={`Pour ${sortedHotels.length} hôtels sur ${nights} nuit${nights > 1 ? 's' : ''}`}
                             size="medium"
                             fullHeight={false}

@@ -6,7 +6,33 @@ import HotelsListView from '../ui/HotelsListView.jsx';
 import Loader from '../ui/Loader.jsx';
 import {useQuery} from '@tanstack/react-query';
 import apiClient from '../services/ApiClient';
-import {normalizeHotelForCard} from '../utils/normalizeHotel'; // ✅ NEW
+import {normalizeHotelForCard} from '../utils/normalizeHotel';
+
+// ── Shared utility — same logic as HotelsPerCityPage ─────────────────────────
+// Extracts a deduplicated flat rooms[] from a single hotel's Price.Boarding tree
+const extractRoomsFromPrice = (priceTree, currency) => {
+    if (!priceTree?.Boarding) return [];
+    const roomMap = new Map();
+    priceTree.Boarding.forEach(boarding => {
+        boarding.Pax?.forEach(pax => {
+            pax.Rooms?.forEach(room => {
+                const price  = room.Price ? parseFloat(room.Price) : null;
+                const roomKey = `${boarding.Code}__${room.Code ?? room.Id ?? ''}`;
+                if (!roomMap.has(roomKey)) {
+                    roomMap.set(roomKey, {
+                        id:           room.Id   ?? roomKey,
+                        name:         room.Name ?? room.Code ?? 'Chambre',
+                        boardingCode: boarding.Code,
+                        boardingName: boarding.Name,
+                        price,
+                        currency,
+                    });
+                }
+            });
+        });
+    });
+    return Array.from(roomMap.values());
+};
 
 // ── SearchSummaryBanner ────────────────────────────────────────────────────────
 function SearchSummaryBanner({countResults, allHotelsCount, searchCriteria, searchId, onBack}) {
@@ -90,8 +116,8 @@ function SearchSummaryBanner({countResults, allHotelsCount, searchCriteria, sear
 
 // ── HotelsSearchResultsPage ───────────────────────────────────────────────────
 function HotelsSearchResultsPage() {
-    const location     = useLocation();
-    const navigate     = useNavigate();
+    const location       = useLocation();
+    const navigate       = useNavigate();
     const [searchParams] = useSearchParams();
 
     const stateData     = location.state;
@@ -169,14 +195,13 @@ function HotelsSearchResultsPage() {
     } = useQuery({
         queryKey: ['hotelDetailsForSearch', hotelIds],
         queryFn:  async () => {
-            if (!hotelIds || hotelIds.length === 0)
-                return {hotelsMap: {}, count: 0};
-            const MAX_HOTELS    = 100;
-            const limitedIds    = hotelIds.slice(0, MAX_HOTELS);
+            if (!hotelIds || hotelIds.length === 0) return {hotelsMap: {}, count: 0};
+            const MAX_HOTELS  = 100;
+            const limitedIds  = hotelIds.slice(0, MAX_HOTELS);
             if (import.meta.env.DEV && hotelIds.length > MAX_HOTELS)
                 console.warn(`Limiting to ${MAX_HOTELS} hotels`);
-            const batchSize = limitedIds.length > 50 ? 3 : 5;
-            const hotelsMap = await apiClient.getHotelsBatch(
+            const batchSize   = limitedIds.length > 50 ? 3 : 5;
+            const hotelsMap   = await apiClient.getHotelsBatch(
                 limitedIds, batchSize, {delayBetweenBatches: 150}
             );
             return {
@@ -190,7 +215,7 @@ function HotelsSearchResultsPage() {
         retry:     1,
     });
 
-    // ── Step 2 — Search hotels + pricing ──────────────────────────────────────
+    // ── Step 2 — Search hotels + pricing + ✅ preloaded rooms ─────────────────
     const {
         data:      fetchedData,
         isLoading: isLoadingSearch,
@@ -208,7 +233,6 @@ function HotelsSearchResultsPage() {
             const result     = await apiClient.searchHotel({
                 checkIn, checkOut,
                 hotels: searchIds,
-                // ✅ consistent rooms shape
                 rooms: rooms.map(room => ({
                     adult:     room.adults,
                     child:     Array.isArray(room.children) ? room.children.length : (room.children ?? 0),
@@ -223,29 +247,50 @@ function HotelsSearchResultsPage() {
 
             const hotelsMap = hotelsDetailsData?.hotelsMap ?? {};
 
-            // ✅ normalizeHotelForCard applied here — search results get same shape
             const enrichedResults = result.hotelSearch.map(searchResult => {
                 const hotelFromSearch = searchResult.Hotel;
                 const fullDetails     = hotelsMap[hotelFromSearch.Id];
 
+                // ── Price extraction ─────────────────────────────────────────
                 let minPrice = null;
                 let maxPrice = null;
+
+                // ✅ Single pass — extracts both min/max prices AND preloaded rooms
+                const roomMap = new Map();
+
                 if (searchResult.Price?.Boarding) {
                     const allPrices = [];
-                    for (const boarding of searchResult.Price.Boarding)
-                        for (const pax of boarding.Pax)
-                            for (const room of pax.Rooms)
-                                if (room.Price) {
-                                    const p = parseFloat(room.Price);
-                                    if (!isNaN(p)) allPrices.push(p);
+                    searchResult.Price.Boarding.forEach(boarding => {
+                        boarding.Pax?.forEach(pax => {
+                            pax.Rooms?.forEach(room => {
+                                const price = room.Price ? parseFloat(room.Price) : null;
+                                if (price && !isNaN(price)) allPrices.push(price);
+
+                                // ✅ Dedup by boarding+room key
+                                const roomKey = `${boarding.Code}__${room.Code ?? room.Id ?? ''}`;
+                                if (!roomMap.has(roomKey)) {
+                                    roomMap.set(roomKey, {
+                                        id:           room.Id   ?? roomKey,
+                                        name:         room.Name ?? room.Code ?? 'Chambre',
+                                        boardingCode: boarding.Code,
+                                        boardingName: boarding.Name,
+                                        price:        price && !isNaN(price) ? price : null,
+                                        currency:     searchResult.Currency,
+                                    });
                                 }
+                            });
+                        });
+                    });
                     if (allPrices.length > 0) {
                         minPrice = Math.min(...allPrices);
                         maxPrice = Math.max(...allPrices);
                     }
                 }
 
-                // ✅ Build raw hotel object with all possible fields, then normalize
+                // ✅ Flat rooms array — fed to HotelLightCard as preloadedAvailability
+                const preloadedRooms = Array.from(roomMap.values());
+
+                // ── Build raw hotel object ────────────────────────────────────
                 const rawHotel = {
                     Id:               hotelFromSearch.Id,
                     Name:             fullDetails?.Name             ?? hotelFromSearch.Name,
@@ -256,16 +301,17 @@ function HotelsSearchResultsPage() {
                     Localization:     fullDetails?.Localization     ?? hotelFromSearch.Localization,
                     ShortDescription: fullDetails?.ShortDescription ?? hotelFromSearch.ShortDescription,
                     Description:      fullDetails?.Description      ?? fullDetails?.ShortDescription,
-                    // ✅ Album: try fullDetails first, then fall back to hotelFromSearch
                     Image:            fullDetails?.Image            ?? hotelFromSearch.Image,
                     Album:            fullDetails?.Album            ?? hotelFromSearch.Album,
                     Facilities:       fullDetails?.Facilities?.slice(0, 10),
                     Theme:            fullDetails?.Theme?.slice(0, 5) ?? hotelFromSearch.Theme,
                     hasFullDetails:   !!fullDetails,
+                    // ✅ Embedded so allHotels carries it through HotelsListView → HotelLightCard
+                    _preloadedRooms:  preloadedRooms,
                 };
 
                 return {
-                    Hotel:            normalizeHotelForCard(rawHotel), // ✅ normalized
+                    Hotel: normalizeHotelForCard(rawHotel), // ✅ _preloadedRooms preserved via ...h spread
                     MinPrice:         minPrice,
                     MaxPrice:         maxPrice,
                     Currency:         searchResult.Currency,
@@ -277,16 +323,14 @@ function HotelsSearchResultsPage() {
             });
 
             const finalData = {
-                searchResults: enrichedResults,
-                searchId:      result.searchId,
-                countResults:  result.countResults,
-                // ✅ nights from component scope — not re-derived downstream
+                searchResults:  enrichedResults,
+                searchId:       result.searchId,
+                countResults:   result.countResults,
                 searchCriteria: {checkIn, checkOut, rooms, nights},
             };
 
             // Cache in sessionStorage if large
-            const finalDataSize = JSON.stringify(finalData).length;
-            if (finalDataSize > 524_288) {
+            if (JSON.stringify(finalData).length > 524_288) {
                 const sid = `search_${Date.now()}`;
                 try {
                     sessionStorage.setItem(sid,                 JSON.stringify(finalData));
@@ -295,6 +339,7 @@ function HotelsSearchResultsPage() {
                     if (import.meta.env.DEV) console.error('Failed to store in sessionStorage');
                 }
             }
+
             return finalData;
         },
         enabled:   !searchData && !!hotelIds && !!checkIn && !!checkOut
@@ -305,19 +350,20 @@ function HotelsSearchResultsPage() {
 
     // ── Consolidated effect: data / error / redirect ───────────────────────────
     useEffect(() => {
-        if (isError && error) { setDataLoadError(error.message); return; }
+        if (isError && error)       { setDataLoadError(error.message); return; }
         if (!searchData && fetchedData) { setSearchData(fetchedData); return; }
         const isLoadingAny = isLoadingDetails || isLoadingSearch;
         if (!isLoadingAny && !searchData && !fetchedData && !dataLoadError
-            && (hotelIds === null) && !stateData) {
+            && hotelIds === null && !stateData) {
             if (import.meta.env.DEV) console.warn('No search data, redirecting home');
             navigate('/', {replace: true});
         }
     }, [isError, error, fetchedData, searchData, isLoadingDetails,
         isLoadingSearch, dataLoadError, hotelIds, stateData, navigate]);
 
-    // ── Derived helpers ────────────────────────────────────────────────────────
-    // allHotels — Hotel objects (already normalized inside enrichedResults)
+    // ── Derived ────────────────────────────────────────────────────────────────
+    // ✅ _preloadedRooms is already embedded in each Hotel object
+    //    HotelsListView reads hotel._preloadedRooms and passes it as preloadedAvailability
     const allHotels = useMemo(() => {
         if (!searchData?.searchResults) return [];
         return searchData.searchResults.map(r => r.Hotel);
@@ -345,8 +391,8 @@ function HotelsSearchResultsPage() {
                 message="Chargement des résultats..."
                 submessage={
                     hotelIds && hotelIds.length > 50
-                        ? 'Traitement d\'un grand nombre d\'hôtels, veuillez patienter'
-                        : 'Cette opération peut prendre quelques instants'
+                        ? "Traitement d'un grand nombre d'hôtels, veuillez patienter"
+                        : "Cette opération peut prendre quelques instants"
                 }
                 size="large"
                 variant="gradient"
@@ -356,8 +402,8 @@ function HotelsSearchResultsPage() {
     }
 
     // ── Error ──────────────────────────────────────────────────────────────────
-    const hasError      = isErrorDetails || isError || dataLoadError;
-    const errorMessage  = dataLoadError ?? errorDetails?.message ?? error?.message;
+    const hasError     = isErrorDetails || isError || dataLoadError;
+    const errorMessage = dataLoadError ?? errorDetails?.message ?? error?.message;
     if (hasError) {
         return (
             <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-sky-50 via-blue-50 to-sky-100">
@@ -366,7 +412,9 @@ function HotelsSearchResultsPage() {
                         <AlertTriangle className="w-8 h-8 text-red-600"/>
                     </div>
                     <h2 className="text-2xl font-bold text-gray-800 mb-4">Erreur de chargement</h2>
-                    <p className="text-gray-600 mb-2">{errorMessage ?? 'Impossible de charger les résultats de recherche'}</p>
+                    <p className="text-gray-600 mb-2">
+                        {errorMessage ?? 'Impossible de charger les résultats de recherche'}
+                    </p>
                     {hotelIds && hotelIds.length > 100 && (
                         <p className="text-sm text-orange-600 mb-6 p-3 bg-orange-50 rounded-lg">
                             Recherche de {hotelIds.length} hôtels détectée. Veuillez affiner votre recherche.

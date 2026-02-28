@@ -1,70 +1,80 @@
 // src/components/HotelLightCard.jsx
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import {useState, useMemo, useCallback, useEffect, useRef} from 'react';
+import {useNavigate} from 'react-router-dom';
 import {
     Heart, MapPin, Star, Wifi, Car, Utensils, Waves,
     Wind, Coffee, Dumbbell, Sparkles, ChevronRight,
     CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Loader2,
-} from "lucide-react";
-import toast from "react-hot-toast";
-import apiClient from "../services/ApiClient";
+} from 'lucide-react';
+import toast from 'react-hot-toast';
+import apiClient from '../services/ApiClient';
 
 // ── Utilities ──────────────────────────────────────────────────────────────────
-
 const formatPrice = (price) => {
-    if (!price) return "0";
-    return new Intl.NumberFormat("fr-DZ").format(price);
+    if (!price) return '0';
+    return new Intl.NumberFormat('fr-DZ').format(price);
 };
 
 // ✅ DOMParser — decodes ALL HTML entities natively, textContent never executes scripts
-const stripHtml = (html = "") => {
-    if (!html) return "";
+const stripHtml = (html = '') => {
+    if (!html) return '';
     try {
-        const doc  = new DOMParser().parseFromString(html, "text/html");
-        const text = doc.body.textContent || "";
-        return text.replace(/\s+/g, " ").trim();
+        const doc  = new DOMParser().parseFromString(html, 'text/html');
+        const text = doc.body.textContent || '';
+        return text.replace(/\s+/g, ' ').trim();
     } catch {
         return html
-            .replace(/<[^>]*>/g, " ")
-            .replace(/&[a-z]+;/gi, " ")
-            .replace(/&#\d+;/g, " ")
-            .replace(/\s+/g, " ")
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/&[a-z]+;/gi, ' ')
+            .replace(/&#\d+;/g, ' ')
+            .replace(/\s+/g, ' ')
             .trim();
     }
 };
 
-const getFacilityIcon = (title = "") => {
+const getFacilityIcon = (title = '') => {
     const t = title.toLowerCase();
-    if (t.includes("wifi") || t.includes("internet")) return Wifi;
-    if (t.includes("parking"))                          return Car;
-    if (t.includes("restaurant") || t.includes("bar")) return Utensils;
-    if (t.includes("piscine") || t.includes("plage"))  return Waves;
-    if (t.includes("climatisation"))                    return Wind;
-    if (t.includes("café") || t.includes("petit"))     return Coffee;
-    if (t.includes("sport") || t.includes("gym"))      return Dumbbell;
-    if (t.includes("spa") || t.includes("bien"))       return Sparkles;
+    if (t.includes('wifi') || t.includes('internet')) return Wifi;
+    if (t.includes('parking'))                         return Car;
+    if (t.includes('restaurant') || t.includes('bar'))return Utensils;
+    if (t.includes('piscine') || t.includes('plage')) return Waves;
+    if (t.includes('climatisation'))                   return Wind;
+    if (t.includes('café') || t.includes('petit'))    return Coffee;
+    if (t.includes('sport') || t.includes('gym'))     return Dumbbell;
+    if (t.includes('spa') || t.includes('bien'))      return Sparkles;
     return CheckCircle2;
 };
 
-// ── Component ──────────────────────────────────────────────────────────────────
+// ── Helper: build boarding tabs from a flat rooms array ───────────────────────
+const buildBoardingFromRooms = (rooms) => {
+    if (!rooms?.length) return [];
+    const map = new Map();
+    rooms.forEach(room => {
+        if (!map.has(room.boardingCode))
+            map.set(room.boardingCode, {code: room.boardingCode, label: room.boardingName});
+    });
+    return Array.from(map.values());
+};
 
+// ── Component ──────────────────────────────────────────────────────────────────
 function HotelLightCard({
                             hotel,
                             onFavoriteToggle,
-                            pricing           = null,
-                            onBook            = null,
-                            onViewDetail      = null,
-                            showBookButton    = false,
-                            nights            = 1,
-                            searchParams      = null,
-                            initialIsFavorite = false,
+                            pricing               = null,
+                            preloadedAvailability = null,   // ✅ NEW — rooms[] from parent's searchHotel call
+                            onBook                = null,
+                            onViewDetail          = null,
+                            showBookButton        = false,
+                            nights                = 1,
+                            searchParams          = null,
+                            initialIsFavorite     = false,
                         }) {
     const navigate = useNavigate();
 
     // ── Refs ───────────────────────────────────────────────────────────────────
-    const cardRef        = useRef(null);
+    const cardRef       = useRef(null);
     // ✅ Fix #1 — ref tracks open state without entering fetchAvailability deps
-    const showTarifsRef  = useRef(false);
+    const showTarifsRef = useRef(false);
 
     // ── UI state ───────────────────────────────────────────────────────────────
     const [isFavorite,  setIsFavorite]  = useState(initialIsFavorite);
@@ -73,12 +83,39 @@ function HotelLightCard({
     const [isLoading,   setIsLoading]   = useState(false);
 
     // ── Dynamic API state ──────────────────────────────────────────────────────
-    const [allRooms,          setAllRooms]          = useState([]);
-    const [availableBoarding, setAvailableBoarding] = useState([]);
-    const [selectedBoarding,  setSelectedBoarding]  = useState(null);
-    const [noAvailability,    setNoAvailability]    = useState(false);
-    const [hasFetched,        setHasFetched]        = useState(false);
+    // ✅ Lazy init from preloadedAvailability — if provided, panel is instant
+    const [allRooms, setAllRooms] = useState(
+        () => preloadedAvailability ?? []
+    );
+    const [availableBoarding, setAvailableBoarding] = useState(
+        () => buildBoardingFromRooms(preloadedAvailability)
+    );
+    const [selectedBoarding, setSelectedBoarding] = useState(
+        () => preloadedAvailability?.[0]?.boardingCode ?? null
+    );
+    const [noAvailability, setNoAvailability] = useState(
+        () => preloadedAvailability !== null && preloadedAvailability.length === 0
+    );
+    // ✅ hasFetched = true immediately if preloadedAvailability was provided
+    //    → IntersectionObserver prefetch and button-click fetch are both skipped
+    const [hasFetched, setHasFetched] = useState(
+        () => preloadedAvailability !== null
+    );
 
+    // ── Sync when preloadedAvailability updates (e.g. parent date change) ──────
+    useEffect(() => {
+        // null means pricing is loading — don't reset to avoid flicker
+        if (preloadedAvailability === null) return;
+
+        const boarding = buildBoardingFromRooms(preloadedAvailability);
+        setAllRooms(preloadedAvailability);
+        setAvailableBoarding(boarding);
+        setSelectedBoarding(boarding[0]?.code ?? null);
+        setNoAvailability(preloadedAvailability.length === 0);
+        setHasFetched(true);
+    }, [preloadedAvailability]);
+
+    // ── Hotel field destructuring ──────────────────────────────────────────────
     const {
         Id, Name, Category, City,
         ShortDescription, Description,
@@ -87,13 +124,14 @@ function HotelLightCard({
 
     // ── Derived ────────────────────────────────────────────────────────────────
     const hotelImage = useMemo(() => {
+        // Album[0] is always a URL string after normalization
         if (Album.length > 0) return Album[0];
-        return Image || "https://loremflickr.com/600/400/hotel,luxury?lock=42";
+        return Image || 'https://loremflickr.com/600/400/hotel,luxury?lock=42';
     }, [Album, Image]);
 
     // ✅ Fix #2 — full decoded text, no JS truncation; line-clamp-3 handles overflow
     const shortDesc = useMemo(() => {
-        const raw = ShortDescription || Description || "";
+        const raw = ShortDescription || Description || '';
         return stripHtml(raw);
     }, [ShortDescription, Description]);
 
@@ -102,10 +140,7 @@ function HotelLightCard({
         [Category?.Star]
     );
 
-    const topFacilities = useMemo(
-        () => Facilities.slice(0, 4),
-        [Facilities]
-    );
+    const topFacilities = useMemo(() => Facilities.slice(0, 4), [Facilities]);
 
     const filteredRooms = useMemo(() => {
         if (!selectedBoarding) return allRooms;
@@ -118,7 +153,7 @@ function HotelLightCard({
         return pricing.minPrice * nights;
     }, [pricing?.minPrice, nights]);
 
-    // ── Fetch availability ─────────────────────────────────────────────────────
+    // ── Fetch availability (fallback when no preloadedAvailability) ───────────
     // ✅ Fix #1 — showTarifs removed from deps; ref used for toast guard instead
     const fetchAvailability = useCallback(async () => {
         if (!searchParams?.checkIn || !searchParams?.checkOut) return;
@@ -138,7 +173,7 @@ function HotelLightCard({
                     adults:    r.adults ?? 2,
                     children:  Array.isArray(r.children) ? r.children.length : 0,
                     childAges: Array.isArray(r.children) ? r.children : [],
-                })) ?? [{ adults: 2, children: 0, childAges: [] }],
+                })) ?? [{adults: 2, children: 0, childAges: []}],
             });
 
             if (!response.rooms?.length) {
@@ -146,28 +181,17 @@ function HotelLightCard({
                 return;
             }
 
-            const boardingMap = new Map();
-            response.rooms.forEach(room => {
-                if (!boardingMap.has(room.boardingCode)) {
-                    boardingMap.set(room.boardingCode, {
-                        code:  room.boardingCode,
-                        label: room.boardingName,
-                    });
-                }
-            });
-
-            const dynamicBoarding = Array.from(boardingMap.values());
+            const boarding = buildBoardingFromRooms(response.rooms);
             setAllRooms(response.rooms);
-            setAvailableBoarding(dynamicBoarding);
-            setSelectedBoarding(dynamicBoarding[0]?.code ?? null);
+            setAvailableBoarding(boarding);
+            setSelectedBoarding(boarding[0]?.code ?? null);
             setHasFetched(true);
 
         } catch (err) {
             if (!err.isCancelled) {
                 // ✅ Fix #1 — reads ref, not captured state value
-                if (showTarifsRef.current) {
-                    toast.error("Erreur lors de la recherche de disponibilités.");
-                }
+                if (showTarifsRef.current)
+                    toast.error('Erreur lors de la recherche de disponibilités.');
                 setNoAvailability(true);
                 setAvailableBoarding([]);
             }
@@ -176,7 +200,8 @@ function HotelLightCard({
         }
     }, [Id, searchParams]); // ✅ showTarifs gone — stable across panel open/close
 
-    // ── Option C — Viewport prefetch ───────────────────────────────────────────
+    // ── Option C — Viewport prefetch (only when no preloaded data) ────────────
+    // hasFetched = true when preloadedAvailability exists → observer never fires
     useEffect(() => {
         if (!searchParams?.checkIn || !searchParams?.checkOut) return;
         if (hasFetched) return;
@@ -185,32 +210,28 @@ function HotelLightCard({
         if (!el) return;
 
         const observer = new IntersectionObserver(
-            (entries) => {
+            entries => {
                 if (entries[0].isIntersecting) {
                     void fetchAvailability();
                     observer.unobserve(el);
                 }
             },
-            {
-                threshold:  0.1,
-                rootMargin: "200px",
-            }
+            {threshold: 0.1, rootMargin: '200px'}
         );
-
         observer.observe(el);
         // ✅ Fix #6 — disconnect is universally safe even if el is unmounted
         return () => observer.disconnect();
     }, [searchParams, hasFetched, fetchAvailability]);
 
-    // ── Handlers ───────────────────────────────────────────────────────────────
+    // ── Handlers ──────────────────────────────────────────────────────────────
     const handleToggleTarifs = useCallback(() => {
         const next = !showTarifs;
-        showTarifsRef.current = next;          // ✅ Fix #1 — keep ref in sync with state
+        showTarifsRef.current = next;          // ✅ Fix #1 — keep ref in sync
         setShowTarifs(next);
         if (next && !hasFetched) void fetchAvailability();
     }, [showTarifs, hasFetched, fetchAvailability]);
 
-    // ✅ Fix #3 — fetchAvailability is already self-resetting; no need for setHasFetched(false)
+    // ✅ Fix #3 — fetchAvailability is already self-resetting
     const handleRefresh = useCallback(() => {
         void fetchAvailability();
     }, [fetchAvailability]);
@@ -220,7 +241,7 @@ function HotelLightCard({
         const next = !isFavorite;
         setIsFavorite(next);
         onFavoriteToggle?.(Id, next);
-        toast.success(next ? "Ajouté aux favoris" : "Retiré des favoris");
+        toast.success(next ? 'Ajouté aux favoris' : 'Retiré des favoris');
     }, [isFavorite, Id, onFavoriteToggle]);
 
     const handleBook = useCallback((room) => {
@@ -232,7 +253,7 @@ function HotelLightCard({
                 `&checkIn=${searchParams?.checkIn}` +
                 `&checkOut=${searchParams?.checkOut}` +
                 `&rooms=${encodeURIComponent(JSON.stringify(searchParams?.rooms ?? []))}`,
-                { state: { hotel, selectedRoom: room, searchParams, nights } }
+                {state: {hotel, selectedRoom: room, searchParams, nights}}
             );
         }
     }, [onBook, hotel, navigate, Id, searchParams, nights]);
@@ -242,12 +263,11 @@ function HotelLightCard({
         else navigate(`/hotels/${Id}`);
     }, [onViewDetail, navigate, Id]);
 
-    // ──────────────────────────────────────────────────────────────────────────
-
+    // ── Render ─────────────────────────────────────────────────────────────────
     return (
         <div ref={cardRef} className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 group">
 
-            {/* ── Top section: image left + content right ─────────────────── */}
+            {/* Top section: image left + content right */}
             <div className="flex flex-col sm:flex-row">
 
                 {/* Image */}
@@ -256,16 +276,16 @@ function HotelLightCard({
                     onClick={handleViewDetail}
                 >
                     {!imageLoaded && (
-                        <div className="absolute inset-0 bg-gray-200 animate-pulse" />
+                        <div className="absolute inset-0 bg-gray-200 animate-pulse"/>
                     )}
                     <img
                         src={hotelImage}
                         alt={Name}
                         className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500
-                            ${imageLoaded ? "opacity-100" : "opacity-0"}`}
+                            ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
                         onLoad={() => setImageLoaded(true)}
                         onError={(e) => {
-                            e.target.src = "https://loremflickr.com/600/400/hotel,luxury?lock=42";
+                            e.target.src = 'https://loremflickr.com/600/400/hotel,luxury?lock=42';
                             setImageLoaded(true);
                         }}
                         loading="lazy"
@@ -275,7 +295,7 @@ function HotelLightCard({
                     {stars.length > 0 && (
                         <div className="absolute top-3 left-3 flex items-center gap-0.5 bg-orange-500 px-2.5 py-1 rounded-full shadow">
                             {stars.map((_, i) => (
-                                <Star key={i} size={12} fill="white" className="text-white" />
+                                <Star key={i} size={12} fill="white" className="text-white"/>
                             ))}
                         </div>
                     )}
@@ -287,11 +307,11 @@ function HotelLightCard({
                     >
                         <Heart
                             size={18}
-                            className={isFavorite ? "fill-red-500 text-red-500" : "text-gray-400"}
+                            className={isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-400'}
                         />
                     </button>
 
-                    {/* ✅ Image overlay — totalPrice + per-night hint */}
+                    {/* Price overlay */}
                     {pricing?.minPrice && (
                         <div className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-xl shadow-lg">
                             <p className="text-xs text-gray-400 leading-none">À partir de</p>
@@ -321,9 +341,9 @@ function HotelLightCard({
                                 {Name}
                             </h3>
                             <div className="flex items-center gap-1.5 text-gray-500 text-sm">
-                                <MapPin size={14} className="text-sky-500 flex-shrink-0" />
+                                <MapPin size={14} className="text-sky-500 flex-shrink-0"/>
                                 <span className="truncate">
-                                    {City?.Name}{City?.Country?.Name ? `, ${City.Country.Name}` : ""}
+                                    {City?.Name}{City?.Country?.Name ? `, ${City.Country.Name}` : ''}
                                 </span>
                             </div>
                         </div>
@@ -339,13 +359,13 @@ function HotelLightCard({
                         {topFacilities.length > 0 && (
                             <div className="flex flex-wrap gap-2">
                                 {topFacilities.map((f, i) => {
-                                    const Icon = getFacilityIcon(f.Title || "");
+                                    const Icon = getFacilityIcon(f.Title || '');
                                     return (
                                         <span
                                             key={f.Title ?? i}
                                             className="flex items-center gap-1 px-2.5 py-1 bg-sky-50 text-sky-700 rounded-full text-xs border border-sky-100"
                                         >
-                                            <Icon size={12} />
+                                            <Icon size={12}/>
                                             {f.Title}
                                         </span>
                                     );
@@ -356,25 +376,21 @@ function HotelLightCard({
                         {/* Nights + guests info row */}
                         {searchParams && (
                             <div className="flex items-center gap-3 text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2 w-fit">
-                                <span>🌙 {nights} nuit{nights > 1 ? "s" : ""}</span>
+                                <span>🌙 {nights} nuit{nights > 1 ? 's' : ''}</span>
                                 <span>•</span>
-                                <span>
-                                    👤 {searchParams.rooms?.reduce((s, r) => s + (r.adults || 0), 0)} adulte(s)
-                                </span>
+                                <span>👤 {searchParams.rooms?.reduce((s, r) => s + (r.adults || 0), 0)} adulte(s)</span>
                             </div>
                         )}
                     </div>
 
-                    {/* ── Bottom: price + buttons ────────────────────────── */}
+                    {/* Bottom: price + buttons */}
                     <div className="flex items-end justify-between gap-3 flex-wrap mt-5 pt-4 border-t border-gray-100">
 
                         {/* Price block */}
                         <div className="flex flex-col justify-end">
                             {pricing?.minPrice ? (
                                 <div className="flex flex-col">
-                                    <span className="text-xs text-gray-400 leading-none mb-0.5">
-                                        À partir de
-                                    </span>
+                                    <span className="text-xs text-gray-400 leading-none mb-0.5">À partir de</span>
                                     <div className="flex items-baseline gap-1">
                                         <span className="text-2xl font-extrabold text-sky-700 leading-none">
                                             {formatPrice(totalPrice ?? pricing.minPrice)}
@@ -386,9 +402,7 @@ function HotelLightCard({
                                             {nights} nuits · {formatPrice(pricing.minPrice)} DZD / nuit
                                         </span>
                                     ) : (
-                                        <span className="text-xs text-gray-400 mt-0.5">
-                                            / nuit · par chambre
-                                        </span>
+                                        <span className="text-xs text-gray-400 mt-0.5">/ nuit · par chambre</span>
                                     )}
                                 </div>
                             ) : (
@@ -405,29 +419,27 @@ function HotelLightCard({
                                 onClick={handleViewDetail}
                                 className="px-4 py-2 border border-sky-300 text-sky-700 hover:bg-sky-50 rounded-lg text-sm font-semibold transition-all flex items-center gap-1"
                             >
-                                Détail <ChevronRight size={14} />
+                                Détail <ChevronRight size={14}/>
                             </button>
                             <button
                                 onClick={handleToggleTarifs}
                                 className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-semibold transition-all flex items-center gap-1.5 shadow-sm"
                             >
                                 Tarifs & Chambres
-                                {showTarifs ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                                {showTarifs ? <ChevronUp size={15}/> : <ChevronDown size={15}/>}
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* ── Tarifs panel ────────────────────────────────────────────────── */}
+            {/* Tarifs panel */}
             {showTarifs && (
                 <div className="border-t border-gray-100">
 
                     {/* Panel header */}
                     <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-100">
-                        <p className="text-sm font-bold text-gray-700">
-                            Choisissez votre formule
-                        </p>
+                        <p className="text-sm font-bold text-gray-700">Choisissez votre formule</p>
                         {hasFetched && !isLoading && (
                             <button
                                 onClick={handleRefresh}
@@ -441,7 +453,7 @@ function HotelLightCard({
                     {/* Loading */}
                     {isLoading && (
                         <div className="flex items-center justify-center gap-3 py-10">
-                            <Loader2 size={28} className="animate-spin text-sky-500" />
+                            <Loader2 size={28} className="animate-spin text-sky-500"/>
                             <p className="text-sm text-gray-500">Recherche des disponibilités...</p>
                         </div>
                     )}
@@ -449,7 +461,7 @@ function HotelLightCard({
                     {/* No availability */}
                     {!isLoading && noAvailability && (
                         <div className="flex flex-col items-center justify-center py-8 px-4 gap-2 text-center">
-                            <AlertCircle size={28} className="text-orange-400" />
+                            <AlertCircle size={28} className="text-orange-400"/>
                             <p className="text-sm font-semibold text-orange-700">
                                 Aucune disponibilité pour ces dates
                             </p>
@@ -470,7 +482,7 @@ function HotelLightCard({
                         <>
                             {/* Tabs */}
                             <div className="flex gap-2 px-4 pt-3 pb-2 overflow-x-auto scrollbar-hide">
-                                {availableBoarding.map((board) => (
+                                {availableBoarding.map(board => (
                                     <button
                                         key={board.code}
                                         onClick={() => setSelectedBoarding(board.code)}
@@ -478,8 +490,8 @@ function HotelLightCard({
                                             flex-shrink-0 px-4 py-1.5 rounded-lg text-xs font-semibold
                                             transition-all whitespace-nowrap border
                                             ${selectedBoarding === board.code
-                                            ? "bg-sky-600 text-white border-sky-600 shadow-sm"
-                                            : "bg-white text-gray-600 border-gray-300 hover:border-sky-400 hover:text-sky-700"
+                                            ? 'bg-sky-600 text-white border-sky-600 shadow-sm'
+                                            : 'bg-white text-gray-600 border-gray-300 hover:border-sky-400 hover:text-sky-700'
                                         }
                                         `}
                                     >
@@ -495,7 +507,7 @@ function HotelLightCard({
                                         Aucune chambre disponible pour cette formule.
                                     </p>
                                 ) : (
-                                    filteredRooms.map((room) => {
+                                    filteredRooms.map(room => {
                                         // ✅ Fix #4 — strict nights >= 1 guard
                                         const roomTotal = room.price != null && nights >= 1
                                             ? room.price * nights
@@ -506,12 +518,9 @@ function HotelLightCard({
                                                 className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-sky-50/60 transition-colors"
                                             >
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-semibold text-gray-800 truncate">
-                                                        {room.name}
-                                                    </p>
+                                                    <p className="text-sm font-semibold text-gray-800 truncate">{room.name}</p>
                                                     <p className="text-xs text-gray-400">{room.boardingName}</p>
                                                 </div>
-
                                                 <div className="flex items-center gap-3 flex-shrink-0">
                                                     <div className="text-right">
                                                         <p className="text-sm font-bold text-sky-700">
@@ -527,7 +536,6 @@ function HotelLightCard({
                                                             </p>
                                                         )}
                                                     </div>
-
                                                     {showBookButton && (
                                                         <button
                                                             onClick={() => handleBook(room)}
@@ -546,13 +554,13 @@ function HotelLightCard({
                             {/* Footer */}
                             <div className="px-5 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
                                 <span className="text-xs text-gray-400">
-                                    {filteredRooms.length} chambre{filteredRooms.length > 1 ? "s" : ""} disponible{filteredRooms.length > 1 ? "s" : ""}
+                                    {filteredRooms.length} chambre{filteredRooms.length > 1 ? 's' : ''} disponible{filteredRooms.length > 1 ? 's' : ''}
                                 </span>
                                 <button
                                     onClick={handleViewDetail}
                                     className="text-xs text-sky-600 hover:text-sky-800 font-semibold flex items-center gap-1"
                                 >
-                                    Fiche complète <ChevronRight size={12} />
+                                    Fiche complète <ChevronRight size={12}/>
                                 </button>
                             </div>
                         </>

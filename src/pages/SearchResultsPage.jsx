@@ -1,38 +1,44 @@
 // src/pages/SearchResultsPage.jsx
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useSearchParams, useNavigate, Link } from "react-router-dom";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {useState, useEffect, useRef, useCallback, useMemo} from 'react';
+import {useSearchParams, useNavigate, Link} from 'react-router-dom';
+import {useInfiniteQuery, useQuery} from '@tanstack/react-query';
 import {
     Search, Calendar, Users, Hotel, AlertCircle,
     ArrowLeft, ArrowUpDown, CheckCircle, ChevronDown, MapPin,
-} from "lucide-react";
-import toast from "react-hot-toast";
-import apiClient from "../services/ApiClient";
-import HotelLightCard from "../components/HotelLightCard.jsx";
-import Loader from "../ui/Loader.jsx";
+} from 'lucide-react';
+import toast from 'react-hot-toast';
+import apiClient from '../services/ApiClient';
+import HotelLightCard from '../components/HotelLightCard.jsx';
+import Loader from '../ui/Loader.jsx';
+
+const HOTELS_PER_PAGE = 10;
 
 function SearchResultsPage() {
     const [searchParams] = useSearchParams();
     const navigate       = useNavigate();
 
-    // ── URL params ─────────────────────────────────────────────────────────
-    const selectionType = searchParams.get("selectionType");
-    const cityId        = searchParams.get("cityId");
-    const cityName      = searchParams.get("cityName");
-    const countryName   = searchParams.get("countryName");
-    const hotelId       = searchParams.get("hotelId");
-    const hotelName     = searchParams.get("hotelName");
-    const checkIn       = searchParams.get("checkIn");
-    const checkOut      = searchParams.get("checkOut");
-    const roomsParam    = searchParams.get("rooms");
-    const nightsParam   = searchParams.get("nights");
+    // ── URL params ─────────────────────────────────────────────────────────────
+    const selectionType = searchParams.get('selectionType');
+    const cityId        = searchParams.get('cityId');
+    const cityName      = searchParams.get('cityName');
+    const countryName   = searchParams.get('countryName');
+    const hotelId       = searchParams.get('hotelId');
+    const hotelName     = searchParams.get('hotelName');
+    const checkIn       = searchParams.get('checkIn');
+    const checkOut      = searchParams.get('checkOut');
+    const roomsParam    = searchParams.get('rooms');
+    const nightsParam   = searchParams.get('nights');
 
+    // ✅ Fixed: fallback to a valid room so the guard redirect never fires on missing param
     const rooms = useMemo(() => {
-        try   { return JSON.parse(roomsParam || "[]"); }
-        catch { return []; }
+        try {
+            const parsed = JSON.parse(roomsParam ?? '[]');
+            return parsed.length > 0 ? parsed : [{adults: 2, children: []}];
+        } catch {
+            return [{adults: 2, children: []}];
+        }
     }, [roomsParam]);
 
-    // ✅ Fix #1 — parseInt with radix + positive guard
     const nights = useMemo(() => {
         const parsed = parseInt(nightsParam, 10);
         if (!isNaN(parsed) && parsed > 0) return parsed;
@@ -42,48 +48,47 @@ function SearchResultsPage() {
         );
     }, [checkIn, checkOut, nightsParam]);
 
-    // ── State ──────────────────────────────────────────────────────────────
+    // ── State ──────────────────────────────────────────────────────────────────
     const [filters, setFilters] = useState({});
-    const [sortBy,  setSortBy]  = useState("recommended");
+    const [sortBy,  setSortBy]  = useState('recommended');
     const loadMoreRef           = useRef(null);
-    const HOTELS_PER_PAGE       = 10;
 
-    // ── Guard: redirect if params are missing ──────────────────────────────
+    // ── Guard: redirect if params are missing ──────────────────────────────────
     useEffect(() => {
         if (!selectionType || !checkIn || !checkOut || rooms.length === 0) {
-            toast.error("Paramètres de recherche invalides");
-            navigate("/");
+            toast.error('Paramètres de recherche invalides');
+            navigate('/');
         }
     }, [selectionType, checkIn, checkOut, rooms, navigate]);
 
-    // ── Step 1: Fetch hotel list / details ─────────────────────────────────
+    // ── Step 1 — Fetch hotel list / details ────────────────────────────────────
     const {
         data:      hotelsData,
         isLoading: isLoadingHotels,
         isError:   isErrorHotels,
         error:     errorHotels,
     } = useQuery({
-        queryKey: ["hotelDetails", cityId, hotelId, selectionType],
-        queryFn: async () => {
-            if (selectionType === "hotel") {
+        queryKey: ['hotelDetails', cityId, hotelId, selectionType],
+        queryFn:  async () => {
+            if (selectionType === 'hotel') {
                 try {
                     const hotelDetail = await apiClient.getHotel(Number(hotelId));
-                    return { hotels: [hotelDetail], hotelIds: [Number(hotelId)] };
+                    return {hotels: [hotelDetail], hotelIds: [Number(hotelId)]};
                 } catch {
-                    console.warn("getHotel failed, falling back to listHotel…");
+                    console.warn('getHotel failed, falling back to listHotel…');
                     if (cityId) {
                         const list   = await apiClient.listHotel(Number(cityId));
-                        const target = list.find((h) => h.Id === Number(hotelId));
-                        if (target) return { hotels: [target], hotelIds: [Number(hotelId)] };
+                        const target = list.find(h => h.Id === Number(hotelId));
+                        if (target) return {hotels: [target], hotelIds: [Number(hotelId)]};
                     }
-                    return { hotels: [], hotelIds: [Number(hotelId)] };
+                    return {hotels: [], hotelIds: [Number(hotelId)]};
                 }
             }
-            if (selectionType === "city") {
+            if (selectionType === 'city') {
                 const hotels = await apiClient.listHotel(Number(cityId));
-                return { hotels, hotelIds: hotels.map((h) => h.Id) };
+                return {hotels, hotelIds: hotels.map(h => h.Id)};
             }
-            return { hotels: [], hotelIds: [] };
+            return {hotels: [], hotelIds: []};
         },
         enabled:   !!(selectionType && (cityId || hotelId)),
         staleTime: 5 * 60 * 1000,
@@ -92,38 +97,38 @@ function SearchResultsPage() {
 
     const hotelsDetailsMap = useMemo(() => {
         const map = {};
-        hotelsData?.hotels?.forEach((h) => { if (h?.Id) map[h.Id] = h; });
+        hotelsData?.hotels?.forEach(h => { if (h?.Id) map[h.Id] = h; });
         return map;
     }, [hotelsData]);
 
-    const hotelIds = useMemo(() => hotelsData?.hotelIds || [], [hotelsData]);
+    const hotelIds = useMemo(() => hotelsData?.hotelIds ?? [], [hotelsData]);
 
-    // ── Step 2: Search hotels (pricing + availability) ─────────────────────
+    // ── Step 2 — Search hotels (pricing + availability) ────────────────────────
     const {
         data:      searchResults,
         isLoading: isLoadingSearch,
         isError:   isErrorSearch,
         error:     errorSearch,
     } = useQuery({
-        queryKey: ["hotelSearch", hotelIds, checkIn, checkOut, rooms],
-        queryFn: async () => {
-            if (!hotelIds.length) throw new Error("Aucun hôtel à rechercher");
+        queryKey: ['hotelSearch', hotelIds, checkIn, checkOut, rooms],
+        queryFn:  async () => {
+            if (!hotelIds.length) throw new Error('Aucun hôtel à rechercher');
 
             const result = await apiClient.searchHotel({
                 checkIn,
                 checkOut,
                 hotels: hotelIds,
-                // ✅ Fix #2 — explicit child count + childAges array
-                rooms: rooms.map((room) => ({
+                rooms: rooms.map(room => ({
                     adult:     room.adults,
-                    child:     room.children.length,
-                    childAges: room.children.length > 0 ? room.children : [],
+                    child:     Array.isArray(room.children) ? room.children.length : (room.children ?? 0),
+                    childAges: Array.isArray(room.children) && room.children.length > 0
+                        ? room.children : undefined,
                 })),
-                filters: { keywords: "", category: [], onlyAvailable: true, tags: [] },
+                filters: {keywords: '', category: [], onlyAvailable: true, tags: []},
             });
 
             if (result.errorMessage?.Code)
-                throw new Error(result.errorMessage.Description || "Erreur de recherche");
+                throw new Error(result.errorMessage.Description ?? 'Erreur de recherche');
 
             return result;
         },
@@ -132,53 +137,71 @@ function SearchResultsPage() {
         retry:     1,
     });
 
-    // ── Step 3: Merge search results with full hotel details ───────────────
+    // ── Step 3 — Merge + ✅ extract preloaded rooms in one pass ───────────────
     const processedHotels = useMemo(() => {
         if (!searchResults?.hotelSearch) return [];
 
-        return searchResults.hotelSearch.map((searchResult) => {
+        return searchResults.hotelSearch.map(searchResult => {
             const hotelFromSearch = searchResult.Hotel;
             const full            = hotelsDetailsMap[hotelFromSearch.Id];
 
+            // ✅ Single pass: extract min/max prices AND build deduped rooms[]
             const allPrices = [];
-            searchResult.Price?.Boarding?.forEach((boarding) =>
-                boarding.Pax?.forEach((pax) =>
-                    pax.Rooms?.forEach((room) => {
-                        const p = parseFloat(room.Price);
-                        if (!isNaN(p)) allPrices.push(p);
-                    })
-                )
-            );
+            const roomMap   = new Map();
 
-            const minPrice = allPrices.length > 0 ? Math.min(...allPrices) : null;
-            const maxPrice = allPrices.length > 0 ? Math.max(...allPrices) : null;
+            searchResult.Price?.Boarding?.forEach(boarding => {
+                boarding.Pax?.forEach(pax => {
+                    pax.Rooms?.forEach(room => {
+                        const price = room.Price ? parseFloat(room.Price) : null;
+                        if (price && !isNaN(price)) allPrices.push(price);
+
+                        // ✅ Dedup by boarding + room key — same pattern as HotelsPerCityPage
+                        const roomKey = `${boarding.Code}__${room.Code ?? room.Id ?? ''}`;
+                        if (!roomMap.has(roomKey)) {
+                            roomMap.set(roomKey, {
+                                id:           room.Id   ?? roomKey,
+                                name:         room.Name ?? room.Code ?? 'Chambre',
+                                boardingCode: boarding.Code,
+                                boardingName: boarding.Name,
+                                price:        price && !isNaN(price) ? price : null,
+                                currency:     searchResult.Currency,
+                            });
+                        }
+                    });
+                });
+            });
+
+            const minPrice      = allPrices.length > 0 ? Math.min(...allPrices) : null;
+            const maxPrice      = allPrices.length > 0 ? Math.max(...allPrices) : null;
+            // ✅ Flat rooms array — passed to HotelLightCard as preloadedAvailability
+            const preloadedRooms = Array.from(roomMap.values());
 
             const pricing = minPrice
-                ? { minPrice, maxPrice, currency: searchResult.Currency, available: true, token: searchResult.Token }
+                ? {minPrice, maxPrice, currency: searchResult.Currency, available: true, token: searchResult.Token}
                 : null;
 
             return {
                 Id:               hotelFromSearch.Id,
-                Name:             full?.Name             || hotelFromSearch.Name,
-                Category:         full?.Category         || hotelFromSearch.Category,
-                City:             full?.City             || hotelFromSearch.City,
-                Address:          full?.Adress           || full?.Address || hotelFromSearch.Adress,
-                Adress:           full?.Adress           || hotelFromSearch.Adress,
-                Localization:     full?.Localization     || hotelFromSearch.Localization,
-                ShortDescription: full?.ShortDescription || hotelFromSearch.ShortDescription,
-                Description:      full?.Description      || full?.ShortDescription || hotelFromSearch.ShortDescription,
-                Image:            full?.Image            || hotelFromSearch.Image,
-                Images:           full?.Album            || (hotelFromSearch.Image ? [hotelFromSearch.Image] : []),
-                Album:            full?.Album            || [],
-                Facilities:       full?.Facilities       || [],
-                Theme:            full?.Theme            || hotelFromSearch.Theme || [],
-                Tag:              full?.Tag              || [],
-                Equipments:       full?.Equipments       || full?.Facilities || [],
+                Name:             full?.Name             ?? hotelFromSearch.Name,
+                Category:         full?.Category         ?? hotelFromSearch.Category,
+                City:             full?.City             ?? hotelFromSearch.City,
+                Address:          full?.Adress           ?? full?.Address ?? hotelFromSearch.Adress,
+                Adress:           full?.Adress           ?? hotelFromSearch.Adress,
+                Localization:     full?.Localization     ?? hotelFromSearch.Localization,
+                ShortDescription: full?.ShortDescription ?? hotelFromSearch.ShortDescription,
+                Description:      full?.Description      ?? full?.ShortDescription ?? hotelFromSearch.ShortDescription,
+                Image:            full?.Image            ?? hotelFromSearch.Image,
+                Images:           full?.Album            ?? (hotelFromSearch.Image ? [hotelFromSearch.Image] : []),
+                Album:            full?.Album            ?? [],
+                Facilities:       full?.Facilities       ?? [],
+                Theme:            full?.Theme            ?? hotelFromSearch.Theme ?? [],
+                Tag:              full?.Tag              ?? [],
+                Equipments:       full?.Equipments       ?? full?.Facilities ?? [],
                 Email:            full?.Email,
                 Phone:            full?.Phone,
-                Vues:             full?.Vues             || [],
+                Vues:             full?.Vues             ?? [],
                 Type:             full?.Type,
-                Boarding:         full?.Boarding         || [],
+                Boarding:         full?.Boarding         ?? [],
                 pricing,
                 MinPrice:         minPrice,
                 MaxPrice:         maxPrice,
@@ -191,109 +214,112 @@ function SearchResultsPage() {
                 IsAvailable:      true,
                 _searchResult:    true,
                 _hasFullDetails:  !!full,
-                _dataSource:      full ? "merged" : "search-only",
+                _dataSource:      full ? 'merged' : 'search-only',
+                // ✅ Embedded — consumed by HotelLightCard as preloadedAvailability
+                _preloadedRooms:  preloadedRooms,
             };
         });
     }, [searchResults, hotelsDetailsMap]);
 
-    // ── Filter ─────────────────────────────────────────────────────────────
+    // ── Favorites snapshot (read-once at mount) ────────────────────────────────
+    const favoriteIds = useMemo(
+        () => JSON.parse(localStorage.getItem('favoriteHotels') ?? '[]'),
+        []
+    );
+
+    // ── Filter ─────────────────────────────────────────────────────────────────
     const filteredHotels = useMemo(() => {
         let result = [...processedHotels];
-
         if (filters.categories?.length)
-            result = result.filter((h) => filters.categories.includes(h.Category?.Star));
-
+            result = result.filter(h => filters.categories.includes(h.Category?.Star));
         if (filters.services?.length)
-            result = result.filter((h) =>
-                h.Theme?.some((theme) =>
-                    filters.services.some((s) => theme.toLowerCase().includes(s.toLowerCase()))
+            result = result.filter(h =>
+                h.Theme?.some(theme =>
+                    filters.services.some(s => theme.toLowerCase().includes(s.toLowerCase()))
                 )
             );
-
         if (filters.priceRange)
-            result = result.filter((h) => {
-                const p = h.MinPrice || 0;
+            result = result.filter(h => {
+                const p = h.MinPrice ?? 0;
                 return p >= filters.priceRange.min && p <= filters.priceRange.max;
             });
-
         return result;
     }, [processedHotels, filters]);
 
-    // ── Sort ───────────────────────────────────────────────────────────────
+    // ── Sort ───────────────────────────────────────────────────────────────────
     const sortedHotels = useMemo(() => {
         const sorted = [...filteredHotels];
         switch (sortBy) {
-            case "price-asc":  return sorted.sort((a, b) => (a.MinPrice || 0) - (b.MinPrice || 0));
-            case "price-desc": return sorted.sort((a, b) => (b.MinPrice || 0) - (a.MinPrice || 0));
-            case "rating":     return sorted.sort((a, b) => (b.Category?.Star || 0) - (a.Category?.Star || 0));
-            case "name-asc":   return sorted.sort((a, b) => (a.Name || "").localeCompare(b.Name || ""));
+            case 'price-asc':  return sorted.sort((a, b) => (a.MinPrice ?? 0) - (b.MinPrice ?? 0));
+            case 'price-desc': return sorted.sort((a, b) => (b.MinPrice ?? 0) - (a.MinPrice ?? 0));
+            case 'rating':     return sorted.sort((a, b) => (b.Category?.Star ?? 0) - (a.Category?.Star ?? 0));
+            case 'name-asc':   return sorted.sort((a, b) => (a.Name ?? '').localeCompare(b.Name ?? ''));
             default:           return sorted.sort((a, b) => {
-                const diff = (b.Recommended || 0) - (a.Recommended || 0);
-                return diff !== 0 ? diff : (b.Category?.Star || 0) - (a.Category?.Star || 0);
+                const diff = (b.Recommended ?? 0) - (a.Recommended ?? 0);
+                return diff !== 0 ? diff : (b.Category?.Star ?? 0) - (a.Category?.Star ?? 0);
             });
         }
     }, [filteredHotels, sortBy]);
 
-    // ── Pagination (infinite scroll) ───────────────────────────────────────
+    // ── Pagination (infinite scroll) ───────────────────────────────────────────
     const {
         data:              paginatedData,
         fetchNextPage,
         hasNextPage,
         isFetchingNextPage,
     } = useInfiniteQuery({
-        // ✅ Fix #3 — stable key instead of full sortedHotels array
         queryKey: [
-            "hotels-paginated",
+            'hotels-paginated',
             sortedHotels.length,
             sortedHotels[0]?.Id,
             sortedHotels.at(-1)?.Id,
             sortBy,
         ],
-        queryFn: async ({ pageParam = 0 }) => {
+        queryFn: async ({pageParam = 0}) => {
             const start    = pageParam * HOTELS_PER_PAGE;
             const pageData = sortedHotels.slice(start, start + HOTELS_PER_PAGE);
             return {
                 hotels:   pageData,
-                nextPage: start + HOTELS_PER_PAGE < sortedHotels.length ? pageParam + 1 : undefined,
+                nextPage: start + HOTELS_PER_PAGE < sortedHotels.length
+                    ? pageParam + 1 : undefined,
             };
         },
-        getNextPageParam: (lastPage) => lastPage.nextPage,
+        getNextPageParam: lastPage => lastPage.nextPage,
         enabled:          sortedHotels.length > 0,
         initialPageParam: 0,
         staleTime:        5 * 60 * 1000,
     });
 
-    const displayedHotels = paginatedData?.pages?.flatMap((p) => p.hotels) || [];
+    const displayedHotels = paginatedData?.pages?.flatMap(p => p.hotels) ?? [];
 
-    // ── Intersection observer ──────────────────────────────────────────────
-    // ✅ Fix #5 — capture ref value at effect run time to avoid stale ref in cleanup
+    // ── Intersection observer ──────────────────────────────────────────────────
     useEffect(() => {
         const el = loadMoreRef.current;
         if (!el || !hasNextPage || isFetchingNextPage) return;
         const observer = new IntersectionObserver(
-            (entries) => { if (entries[0].isIntersecting) fetchNextPage(); },
-            { threshold: 0.1, rootMargin: "100px" }
+            entries => { if (entries[0].isIntersecting) fetchNextPage(); },
+            {threshold: 0.1, rootMargin: '100px'}
         );
         observer.observe(el);
         return () => observer.unobserve(el);
     }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-    // ── Handlers ───────────────────────────────────────────────────────────
+    // ── Handlers ───────────────────────────────────────────────────────────────
     const handleFavoriteToggle = useCallback((id, isFav) => {
-        const favs = JSON.parse(localStorage.getItem("favoriteHotels") || "[]");
+        const favs = JSON.parse(localStorage.getItem('favoriteHotels') ?? '[]');
         if (isFav) {
-            favs.push(id);
+            if (!favs.includes(id)) favs.push(id);
         } else {
             const i = favs.indexOf(id);
             if (i > -1) favs.splice(i, 1);
         }
-        localStorage.setItem("favoriteHotels", JSON.stringify(favs));
+        localStorage.setItem('favoriteHotels', JSON.stringify(favs));
     }, []);
 
     const handleViewHotelDetail = useCallback((id) => {
         navigate(`/hotel/${id}`, {
             state: {
-                searchParams: { checkIn, checkOut, rooms },
+                searchParams: {checkIn, checkOut, rooms},
                 returnUrl: window.location.pathname + window.location.search,
             },
         });
@@ -301,46 +327,46 @@ function SearchResultsPage() {
 
     const handleBookHotel = useCallback((hotel) => {
         navigate(`/hotel/${hotel.Id}`, {
-            state: { searchParams: { checkIn, checkOut, rooms }, bookingIntent: true, nights },
+            state: {searchParams: {checkIn, checkOut, rooms}, bookingIntent: true, nights},
         });
-        toast.success(`Réservation pour ${hotel.Name}`, { duration: 2000 });
+        toast.success(`Réservation pour ${hotel.Name}`, {duration: 2000});
     }, [navigate, checkIn, checkOut, rooms, nights]);
 
-    // ── Helpers ────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────────
     const totalGuests = useMemo(() => ({
-        adults:   rooms.reduce((s, r) => s + r.adults, 0),
-        children: rooms.reduce((s, r) => s + r.children.length, 0),
+        adults:   rooms.reduce((s, r) => s + (r.adults ?? 0), 0),
+        children: rooms.reduce((s, r) => s + (Array.isArray(r.children) ? r.children.length : (r.children ?? 0)), 0),
     }), [rooms]);
 
     const formatDisplayDate = (dateString) => {
         const d      = new Date(dateString);
-        const days   = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
-        const months = ["Jan","Fév","Mar","Avr","Mai","Juin","Juil","Août","Sep","Oct","Nov","Déc"];
+        const days   = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+        const months = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
         return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
     };
 
     const sortOptions = [
-        { value: "recommended", label: "Recommandés"      },
-        { value: "price-asc",   label: "Prix croissant"   },
-        { value: "price-desc",  label: "Prix décroissant" },
-        { value: "rating",      label: "Meilleures notes" },
-        { value: "name-asc",    label: "Nom (A-Z)"        },
+        {value: 'recommended', label: 'Recommandés'},
+        {value: 'price-asc',   label: 'Prix croissant'},
+        {value: 'price-desc',  label: 'Prix décroissant'},
+        {value: 'rating',      label: 'Meilleures notes'},
+        {value: 'name-asc',    label: 'Nom (A-Z)'},
     ];
 
     const isLoading = isLoadingHotels || isLoadingSearch;
     const isError   = isErrorHotels   || isErrorSearch;
     const error     = errorHotels     || errorSearch;
 
-    // ── Loading ────────────────────────────────────────────────────────────
+    // ── Loading ────────────────────────────────────────────────────────────────
     if (isLoading) {
         return (
             <div className="min-h-screen w-full bg-gradient-to-br from-sky-50 via-blue-50 to-sky-100">
-                <Loader message="Recherche des hôtels disponibles..." fullHeight={true} />
+                <Loader message="Recherche des hôtels disponibles..." fullHeight={true}/>
             </div>
         );
     }
 
-    // ── Render ─────────────────────────────────────────────────────────────
+    // ── Render ─────────────────────────────────────────────────────────────────
     return (
         <div className="min-h-screen w-full bg-gradient-to-br from-sky-50 via-blue-50 to-sky-100">
 
@@ -351,7 +377,7 @@ function SearchResultsPage() {
                         to="/"
                         className="inline-flex items-center gap-2 text-sky-600 hover:text-sky-700 font-semibold mb-4 transition-colors"
                     >
-                        <ArrowLeft size={20} />
+                        <ArrowLeft size={20}/>
                         <span>Modifier la recherche</span>
                     </Link>
 
@@ -359,48 +385,50 @@ function SearchResultsPage() {
                         {/* Destination */}
                         <div className="flex items-start gap-3">
                             <div className="p-2 bg-sky-100 rounded-lg flex-shrink-0">
-                                <MapPin className="text-sky-600" size={20} />
+                                <MapPin className="text-sky-600" size={20}/>
                             </div>
                             <div className="min-w-0 flex-1">
                                 <p className="text-xs text-gray-500 mb-1">Destination</p>
                                 <p className="font-bold text-gray-800 truncate">
-                                    {selectionType === "city" ? cityName : hotelName}
+                                    {selectionType === 'city' ? cityName : hotelName}
                                 </p>
-                                {selectionType === "hotel" && cityName && (
+                                {selectionType === 'hotel' && cityName && (
                                     <p className="text-xs text-gray-500">{cityName}</p>
                                 )}
-                                {countryName && <p className="text-xs text-gray-500">{countryName}</p>}
+                                {countryName && (
+                                    <p className="text-xs text-gray-500">{countryName}</p>
+                                )}
                             </div>
                         </div>
 
                         {/* Dates */}
                         <div className="flex items-start gap-3">
                             <div className="p-2 bg-green-100 rounded-lg flex-shrink-0">
-                                <Calendar className="text-green-600" size={20} />
+                                <Calendar className="text-green-600" size={20}/>
                             </div>
                             <div className="min-w-0 flex-1">
                                 <p className="text-xs text-gray-500 mb-1">Dates</p>
                                 <p className="font-semibold text-gray-800 text-sm">
                                     {formatDisplayDate(checkIn)} — {formatDisplayDate(checkOut)}
                                 </p>
-                                <p className="text-xs text-gray-500">{nights} nuit{nights > 1 ? "s" : ""}</p>
+                                <p className="text-xs text-gray-500">{nights} nuit{nights > 1 ? 's' : ''}</p>
                             </div>
                         </div>
 
                         {/* Voyageurs */}
                         <div className="flex items-start gap-3">
                             <div className="p-2 bg-purple-100 rounded-lg flex-shrink-0">
-                                <Users className="text-purple-600" size={20} />
+                                <Users className="text-purple-600" size={20}/>
                             </div>
                             <div className="min-w-0 flex-1">
                                 <p className="text-xs text-gray-500 mb-1">Voyageurs</p>
                                 <p className="font-semibold text-gray-800 text-sm">
-                                    {totalGuests.adults} adulte{totalGuests.adults > 1 ? "s" : ""}
+                                    {totalGuests.adults} adulte{totalGuests.adults > 1 ? 's' : ''}
                                     {totalGuests.children > 0 &&
-                                        `, ${totalGuests.children} enfant${totalGuests.children > 1 ? "s" : ""}`}
+                                        `, ${totalGuests.children} enfant${totalGuests.children > 1 ? 's' : ''}`}
                                 </p>
                                 <p className="text-xs text-gray-500">
-                                    {rooms.length} chambre{rooms.length > 1 ? "s" : ""}
+                                    {rooms.length} chambre{rooms.length > 1 ? 's' : ''}
                                 </p>
                             </div>
                         </div>
@@ -408,16 +436,16 @@ function SearchResultsPage() {
                         {/* Type de recherche */}
                         <div className="flex items-start gap-3">
                             <div className="p-2 bg-amber-100 rounded-lg flex-shrink-0">
-                                <Search className="text-amber-600" size={20} />
+                                <Search className="text-amber-600" size={20}/>
                             </div>
                             <div className="min-w-0 flex-1">
                                 <p className="text-xs text-gray-500 mb-1">Type de recherche</p>
                                 <p className="font-semibold text-gray-800 text-sm">
-                                    {selectionType === "city" ? "Tous les hôtels" : "Hôtel spécifique"}
+                                    {selectionType === 'city' ? 'Tous les hôtels' : 'Hôtel spécifique'}
                                 </p>
                                 <p className="text-xs text-gray-500">
-                                    {hotelIds?.length || 0} hôtel{(hotelIds?.length || 0) > 1 ? "s" : ""} recherché
-                                    {(hotelIds?.length || 0) > 1 ? "s" : ""}
+                                    {hotelIds?.length ?? 0} hôtel{(hotelIds?.length ?? 0) > 1 ? 's' : ''} recherché
+                                    {(hotelIds?.length ?? 0) > 1 ? 's' : ''}
                                 </p>
                             </div>
                         </div>
@@ -433,12 +461,12 @@ function SearchResultsPage() {
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
                         <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
                             <div className="p-1.5 sm:p-2 bg-sky-100 rounded-lg flex-shrink-0">
-                                <Hotel className="text-sky-600" size={20} />
+                                <Hotel className="text-sky-600" size={20}/>
                             </div>
                             <div className="min-w-0 flex-1">
                                 <p className="text-xs sm:text-sm text-gray-500">Hôtels disponibles</p>
                                 <p className="text-base sm:text-lg lg:text-xl font-bold text-gray-800 truncate">
-                                    {sortedHotels.length} résultat{sortedHotels.length > 1 ? "s" : ""}
+                                    {sortedHotels.length} résultat{sortedHotels.length > 1 ? 's' : ''}
                                     {displayedHotels.length < sortedHotels.length && (
                                         <span className="text-xs sm:text-sm text-gray-500 font-normal ml-1 sm:ml-2">
                                             ({displayedHotels.length} affichés)
@@ -451,10 +479,10 @@ function SearchResultsPage() {
                         <div className="relative flex-1 sm:flex-initial min-w-[140px] sm:min-w-[160px]">
                             <select
                                 value={sortBy}
-                                onChange={(e) => setSortBy(e.target.value)}
+                                onChange={e => setSortBy(e.target.value)}
                                 className="appearance-none w-full pl-3 sm:pl-4 pr-8 sm:pr-10 py-2 sm:py-2.5 bg-white border-2 border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold text-gray-700 hover:border-sky-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 transition-all cursor-pointer"
                             >
-                                {sortOptions.map((o) => (
+                                {sortOptions.map(o => (
                                     <option key={o.value} value={o.value}>{o.label}</option>
                                 ))}
                             </select>
@@ -469,13 +497,15 @@ function SearchResultsPage() {
                 {/* Error */}
                 {isError && (
                     <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl p-6 sm:p-8 lg:p-12 text-center">
-                        <AlertCircle size={48} className="sm:w-16 sm:h-16 mx-auto text-red-500 mb-3 sm:mb-4" />
-                        <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2 sm:mb-3">Erreur de recherche</h3>
+                        <AlertCircle size={48} className="sm:w-16 sm:h-16 mx-auto text-red-500 mb-3 sm:mb-4"/>
+                        <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2 sm:mb-3">
+                            Erreur de recherche
+                        </h3>
                         <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 px-4">
-                            {error?.message || "Impossible de rechercher les hôtels disponibles."}
+                            {error?.message ?? 'Impossible de rechercher les hôtels disponibles.'}
                         </p>
                         <button
-                            onClick={() => navigate("/")}
+                            onClick={() => navigate('/')}
                             className="px-5 sm:px-6 py-2.5 sm:py-3 bg-sky-600 hover:bg-sky-700 text-white text-sm sm:text-base font-semibold rounded-lg sm:rounded-xl transition-all shadow-lg active:scale-95"
                         >
                             Retour à la recherche
@@ -486,13 +516,15 @@ function SearchResultsPage() {
                 {/* Empty state */}
                 {!isLoading && !isError && sortedHotels.length === 0 && (
                     <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl p-6 sm:p-8 lg:p-12 text-center">
-                        <Search size={48} className="sm:w-16 sm:h-16 mx-auto text-gray-300 mb-3 sm:mb-4" />
-                        <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2 sm:mb-3">Aucun hôtel disponible</h3>
+                        <Search size={48} className="sm:w-16 sm:h-16 mx-auto text-gray-300 mb-3 sm:mb-4"/>
+                        <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2 sm:mb-3">
+                            Aucun hôtel disponible
+                        </h3>
                         <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 px-4">
                             Aucun hôtel ne correspond à vos critères pour ces dates.
                         </p>
                         <button
-                            onClick={() => navigate("/")}
+                            onClick={() => navigate('/')}
                             className="px-5 sm:px-6 py-2.5 sm:py-3 bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base font-semibold rounded-lg sm:rounded-xl transition-all shadow-lg active:scale-95"
                         >
                             Nouvelle recherche
@@ -504,17 +536,21 @@ function SearchResultsPage() {
                 {!isLoading && !isError && displayedHotels.length > 0 && (
                     <>
                         <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-                            {displayedHotels.map((hotel, index) => (
+                            {displayedHotels.map(hotel => (
                                 <HotelLightCard
-                                    key={`${hotel.Id}-${index}`}
+                                    key={hotel.Id}
                                     hotel={hotel}
-                                    onFavoriteToggle={handleFavoriteToggle}
                                     pricing={hotel.pricing}
+                                    // ✅ NEW: instant Tarifs panel — no second API call
+                                    preloadedAvailability={hotel._preloadedRooms ?? null}
+                                    onFavoriteToggle={handleFavoriteToggle}
                                     onBook={() => handleBookHotel(hotel)}
                                     onViewDetail={() => handleViewHotelDetail(hotel.Id)}
                                     showBookButton={true}
                                     nights={nights}
-                                    searchParams={{ checkIn, checkOut, rooms }}
+                                    searchParams={{checkIn, checkOut, rooms}}
+                                    // ✅ Fixed: heart state now correctly seeded
+                                    initialIsFavorite={favoriteIds.includes(hotel.Id)}
                                 />
                             ))}
                         </div>
@@ -534,7 +570,7 @@ function SearchResultsPage() {
                                             onClick={() => fetchNextPage()}
                                             className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-sky-600 hover:bg-sky-700 text-white font-bold text-base sm:text-lg rounded-lg sm:rounded-xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 active:scale-95"
                                         >
-                                            <ChevronDown size={20} className="sm:w-6 sm:h-6" />
+                                            <ChevronDown size={20} className="sm:w-6 sm:h-6"/>
                                             Charger plus d'hôtels
                                         </button>
                                     </div>
@@ -546,13 +582,13 @@ function SearchResultsPage() {
                         {!hasNextPage && displayedHotels.length > 0 && (
                             <div className="text-center py-6 sm:py-8 mt-4 sm:mt-6">
                                 <div className="inline-flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg sm:rounded-xl shadow-md max-w-full mx-2">
-                                    <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 flex-shrink-0" />
+                                    <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 flex-shrink-0"/>
                                     <div className="text-left">
                                         <p className="text-gray-800 font-bold text-sm sm:text-base lg:text-lg">
                                             Tous les résultats affichés !
                                         </p>
                                         <p className="text-gray-600 text-xs sm:text-sm">
-                                            {sortedHotels.length} hôtel{sortedHotels.length > 1 ? "s" : ""} disponible{sortedHotels.length > 1 ? "s" : ""}
+                                            {sortedHotels.length} hôtel{sortedHotels.length > 1 ? 's' : ''} disponible{sortedHotels.length > 1 ? 's' : ''}
                                         </p>
                                     </div>
                                 </div>
