@@ -1,47 +1,42 @@
+// src/ui/Carrousel.jsx
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { IoChevronBack, IoChevronForward, IoPause, IoPlay, IoVolumeHigh, IoVolumeMute } from 'react-icons/io5';
 
 const Carrousel = ({
-                      images = [],
-                      autoPlayInterval = 6000,
-                      showControls = true,
-                      showDots = true,
-                      showPlayPause = true,
-                      videoAutoPlay = true,
-                      videoMuted = true,
-                  }) => {
-    const [currentIndex, setCurrentIndex] = useState(0);
-    const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+                       images = [],
+                       autoPlayInterval = 6000,
+                       showControls = true,
+                       showDots = true,
+                       showPlayPause = true,
+                       videoAutoPlay = true,
+                       videoMuted = true,
+                   }) => {
+    const [currentIndex,    setCurrentIndex]    = useState(0);
+    const [isAutoPlaying,   setIsAutoPlaying]   = useState(true);
     const [isTransitioning, setIsTransitioning] = useState(false);
-    const [isMuted, setIsMuted] = useState(videoMuted);
-    const [isFirstLoad, setIsFirstLoad] = useState(true);
+    const [isMuted,         setIsMuted]         = useState(videoMuted);
+    const [isFirstLoad,     setIsFirstLoad]     = useState(true);
     const videoRefs = useRef([]);
 
-    // Detect if current slide is a video
     const isVideo = (url) => {
         const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov'];
         return videoExtensions.some(ext => url.toLowerCase().includes(ext));
     };
 
-    const currentMedia = images[currentIndex];
-    const isCurrentVideo = currentMedia ? isVideo(currentMedia.url) : false;
+    const currentMedia    = images[currentIndex];
+    const isCurrentVideo  = currentMedia ? isVideo(currentMedia.url) : false;
 
     const goToSlide = useCallback((index) => {
         if (isTransitioning) return;
         setIsTransitioning(true);
-
-        // Pause current video if it exists
         const currentVideoRef = videoRefs.current[currentIndex];
         if (currentVideoRef) {
             currentVideoRef.pause();
             currentVideoRef.currentTime = 0;
         }
-
         setCurrentIndex(index);
-
         setTimeout(() => {
             setIsTransitioning(false);
-            // Play new video if it exists and autoplay is enabled
             const newVideoRef = videoRefs.current[index];
             if (newVideoRef && videoAutoPlay) {
                 newVideoRef.play().catch(err => console.log('Video autoplay failed:', err));
@@ -60,13 +55,12 @@ const Carrousel = ({
     }, [currentIndex, images.length, goToSlide]);
 
     const toggleAutoPlay = useCallback(() => {
-        setIsAutoPlaying((prev) => !prev);
+        setIsAutoPlaying(prev => !prev);
     }, []);
 
     const toggleMute = useCallback(() => {
-        setIsMuted((prev) => {
+        setIsMuted(prev => {
             const newMutedState = !prev;
-            // Update all video refs
             videoRefs.current.forEach(video => {
                 if (video) video.muted = newMutedState;
             });
@@ -77,7 +71,6 @@ const Carrousel = ({
     // Auto-play functionality
     useEffect(() => {
         if (!isAutoPlaying) return;
-
         const interval = setInterval(goToNext, autoPlayInterval);
         return () => clearInterval(interval);
     }, [isAutoPlaying, goToNext, autoPlayInterval]);
@@ -86,21 +79,13 @@ const Carrousel = ({
     useEffect(() => {
         if (isFirstLoad && images.length > 0) {
             const firstVideoRef = videoRefs.current[0];
-            const firstMedia = images[0];
-
+            const firstMedia    = images[0];
             if (firstVideoRef && isVideo(firstMedia.url) && videoAutoPlay) {
-                // Small delay to ensure video is loaded
                 const timer = setTimeout(() => {
                     firstVideoRef.play()
-                        .then(() => {
-                            console.log('First video autoplayed successfully');
-                        })
-                        .catch(err => {
-                            console.log('First video autoplay failed:', err);
-                            // Fallback: try playing on user interaction
-                        });
+                        .then(() => console.log('First video autoplayed successfully'))
+                        .catch(err => console.log('First video autoplay failed:', err));
                 }, 100);
-
                 setIsFirstLoad(false);
                 return () => clearTimeout(timer);
             }
@@ -121,15 +106,26 @@ const Carrousel = ({
     // Keyboard navigation
     useEffect(() => {
         const handleKeyPress = (event) => {
-            if (event.key === 'ArrowLeft') goToPrevious();
-            if (event.key === 'ArrowRight') goToNext();
+            // ✅ THE FIX: ignore keyboard events when user is typing in any input/textarea.
+            // Previously, window.addEventListener captured ALL keydown events globally —
+            // including those fired from the LocationSearch <input>. The space key handler
+            // called event.preventDefault() unconditionally, which cancelled the space
+            // character before the input's onChange could receive it, making it impossible
+            // to type multi-word queries like "el mouradi".
+            const tag = document.activeElement?.tagName?.toLowerCase();
+            if (
+                tag === 'input'    ||
+                tag === 'textarea' ||
+                document.activeElement?.isContentEditable
+            ) return;
+
+            if (event.key === 'ArrowLeft')              goToPrevious();
+            if (event.key === 'ArrowRight')             goToNext();
             if (event.key === ' ') {
-                event.preventDefault();
+                event.preventDefault(); // safe — only fires when NOT in an input
                 toggleAutoPlay();
             }
-            if (event.key === 'm' || event.key === 'M') {
-                toggleMute();
-            }
+            if (event.key === 'm' || event.key === 'M') toggleMute();
         };
 
         window.addEventListener('keydown', handleKeyPress);
@@ -138,23 +134,20 @@ const Carrousel = ({
 
     const handleScroll = (e) => {
         e.preventDefault();
-        const currentScroll = window.pageYOffset;
-        const isMobile = window.innerWidth <= 768;
+        const currentScroll  = window.pageYOffset;
+        const isMobile       = window.innerWidth <= 768;
         const scrollDistance = isMobile ? window.innerHeight * 0.7 : window.innerHeight;
-        const targetScroll = currentScroll + scrollDistance;
-        window.scrollTo({
-            top: targetScroll * 0.89,
-            behavior: 'smooth'
-        });
+        const targetScroll   = currentScroll + scrollDistance;
+        window.scrollTo({ top: targetScroll * 0.89, behavior: 'smooth' });
     };
 
-    // Handle video end - auto advance to next slide
     const handleVideoEnd = useCallback(() => {
         goToNext();
     }, [goToNext]);
 
     return (
         <div className="relative w-full h-[calc(63vh-80px)] md:h-[calc(73vh-80px)] overflow-hidden -mt-2 rounded-2xl custom-shadow-heavy">
+
             {/* Main carousel container */}
             <div
                 className="flex transition-all duration-300 ease-in-out h-full"
@@ -162,13 +155,11 @@ const Carrousel = ({
             >
                 {images.map((media, index) => {
                     const isVideoSlide = isVideo(media.url);
-
                     return (
                         <div key={index} className="relative flex-shrink-0 w-full h-full">
-                            {/* Render Video or Image */}
                             {isVideoSlide ? (
                                 <video
-                                    ref={(el) => (videoRefs.current[index] = el)}
+                                    ref={el => videoRefs.current[index] = el}
                                     src={media.url}
                                     className="w-full h-full object-cover"
                                     muted={isMuted}
@@ -184,7 +175,7 @@ const Carrousel = ({
                                     src={media.url}
                                     alt={media.alt}
                                     className="w-full h-full object-cover"
-                                    loading={index === 0 ? "eager" : "lazy"}
+                                    loading={index === 0 ? 'eager' : 'lazy'}
                                 />
                             )}
 
@@ -216,7 +207,7 @@ const Carrousel = ({
                     <button
                         onClick={goToPrevious}
                         disabled={isTransitioning}
-                        className="absolute left-4 top-1/2 -translate-y-1/2 z-10 bg-white bg-opacity-20 hover:bg-opacity-30 backdrop-blur-sm rounded-full p-3 transition-all duration-300 group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="absolute left-4 top-1/2 -translate-y-1/2 z-10 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full p-3 transition-all duration-300 group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         aria-label="Previous slide"
                     >
                         <IoChevronBack className="w-6 h-6 text-sky-700 group-hover:scale-110 transition-transform" />
@@ -225,7 +216,7 @@ const Carrousel = ({
                     <button
                         onClick={goToNext}
                         disabled={isTransitioning}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-white bg-opacity-20 hover:bg-opacity-30 backdrop-blur-sm rounded-full p-3 transition-all duration-300 group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full p-3 transition-all duration-300 group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         aria-label="Next slide"
                     >
                         <IoChevronForward className="w-6 h-6 text-sky-700 group-hover:scale-110 transition-transform" />
@@ -233,50 +224,48 @@ const Carrousel = ({
                 </>
             )}
 
-            {/* Control buttons - Top Right */}
+            {/* Control buttons — Top Right */}
             <div className="absolute top-4 right-4 z-10 flex gap-2">
-                {/* Mute/Unmute button - Only show when current slide is video */}
+                {/* Mute/Unmute — only when current slide is video */}
                 {isCurrentVideo && (
                     <button
                         onClick={toggleMute}
-                        className="bg-white bg-opacity-20 hover:bg-opacity-30 backdrop-blur-sm rounded-full p-3 transition-all duration-300 group cursor-pointer"
+                        className="bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full p-3 transition-all duration-300 group cursor-pointer"
                         aria-label={isMuted ? 'Unmute video' : 'Mute video'}
                         title={isMuted ? 'Activer le son' : 'Désactiver le son'}
                     >
-                        {isMuted ? (
-                            <IoVolumeMute className="w-5 h-5 text-sky-700 group-hover:scale-110 transition-transform" />
-                        ) : (
-                            <IoVolumeHigh className="w-5 h-5 text-sky-700 group-hover:scale-110 transition-transform" />
-                        )}
+                        {isMuted
+                            ? <IoVolumeMute className="w-5 h-5 text-sky-700 group-hover:scale-110 transition-transform" />
+                            : <IoVolumeHigh className="w-5 h-5 text-sky-700 group-hover:scale-110 transition-transform" />
+                        }
                     </button>
                 )}
 
-                {/* Play/Pause button */}
+                {/* Play/Pause */}
                 {showPlayPause && (
                     <button
                         onClick={toggleAutoPlay}
-                        className="bg-white bg-opacity-20 hover:bg-opacity-30 backdrop-blur-sm rounded-full p-3 transition-all duration-300 group cursor-pointer"
+                        className="bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full p-3 transition-all duration-300 group cursor-pointer"
                         aria-label={isAutoPlaying ? 'Pause slideshow' : 'Play slideshow'}
                         title={isAutoPlaying ? 'Mettre en pause' : 'Lecture automatique'}
                     >
-                        {isAutoPlaying ? (
-                            <IoPause className="w-5 h-5 text-sky-700 group-hover:scale-110 transition-transform" />
-                        ) : (
-                            <IoPlay className="w-5 h-5 text-sky-700 group-hover:scale-110 transition-transform" />
-                        )}
+                        {isAutoPlaying
+                            ? <IoPause className="w-5 h-5 text-sky-700 group-hover:scale-110 transition-transform" />
+                            : <IoPlay  className="w-5 h-5 text-sky-700 group-hover:scale-110 transition-transform" />
+                        }
                     </button>
                 )}
             </div>
 
-            {/*/!* Media type indicator badge *!/*/}
-            {/*<div className="absolute top-4 left-4 z-10">*/}
-            {/*    <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-full px-4 py-2 flex items-center gap-2">*/}
-            {/*        <div className={`w-2 h-2 rounded-full ${isCurrentVideo ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></div>*/}
-            {/*        <span className="text-white text-sm font-semibold">*/}
-            {/*            {isCurrentVideo ? 'Vidéo' : 'Image'}*/}
-            {/*        </span>*/}
-            {/*    </div>*/}
-            {/*</div>*/}
+            {/* Media type indicator badge */}
+            <div className="absolute top-4 left-4 z-10">
+                <div className="bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${isCurrentVideo ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`} />
+                    <span className="text-white text-sm font-semibold">
+            {isCurrentVideo ? 'Vidéo' : 'Image'}
+          </span>
+                </div>
+            </div>
 
             {/* Dot indicators */}
             {showDots && (
@@ -295,18 +284,14 @@ const Carrousel = ({
                                 aria-label={`Go to slide ${index + 1}`}
                                 title={isDotVideo ? 'Vidéo' : 'Image'}
                             >
-                                <div
-                                    className={`w-full h-full rounded-full transition-all duration-300 ${
-                                        index === currentIndex
-                                            ? 'bg-orange-600 shadow-lg shadow-orange-500/50'
-                                            : 'bg-white bg-opacity-50 hover:bg-opacity-75'
-                                    }`}
-                                >
-                                    {/* Video indicator on dot */}
-                                    {isDotVideo && (
-                                        <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></div>
-                                    )}
-                                </div>
+                                <div className={`w-full h-full rounded-full transition-all duration-300 ${
+                                    index === currentIndex
+                                        ? 'bg-orange-600 shadow-lg shadow-orange-500/50'
+                                        : 'bg-white/50 hover:bg-white/75'
+                                }`} />
+                                {isDotVideo && (
+                                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-white" />
+                                )}
                             </button>
                         );
                     })}
@@ -314,19 +299,20 @@ const Carrousel = ({
             )}
 
             {/* Progress bar */}
-            <div className="absolute bottom-0 left-0 h-1 bg-white bg-opacity-20 w-full">
+            <div className="absolute bottom-0 left-0 h-1 bg-white/20 w-full">
                 <div
                     className="h-full bg-gradient-to-r from-sky-200 to-sky-900 transition-all duration-300"
                     style={{ width: `${((currentIndex + 1) / images.length) * 100}%` }}
                 />
             </div>
 
-            {/*/!* Slide counter *!/*/}
-            {/*<div className="absolute bottom-16 right-4 z-10 bg-white bg-opacity-20 backdrop-blur-sm rounded-full px-4 py-2">*/}
-            {/*    <span className="text-white text-sm font-semibold">*/}
-            {/*        {currentIndex + 1} / {images.length}*/}
-            {/*    </span>*/}
-            {/*</div>*/}
+            {/* Slide counter */}
+            <div className="absolute bottom-16 right-4 z-10 bg-white/20 backdrop-blur-sm rounded-full px-4 py-2">
+        <span className="text-white text-sm font-semibold">
+          {currentIndex + 1} / {images.length}
+        </span>
+            </div>
+
         </div>
     );
 };

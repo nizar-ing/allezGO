@@ -1,7 +1,7 @@
 // src/custom-hooks/useHotelQueries.js
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import ApiClient from "../services/ApiClient.js";
+import apiClient from "../services/apiClient.js";
 
 // ==================== Query Keys ====================
 export const QUERY_KEYS = {
@@ -39,35 +39,35 @@ const QUERY_CONFIG = {
 
 export const useCountries = (options = {}) => useQuery({
     queryKey: QUERY_KEYS.countries,
-    queryFn:  () => ApiClient.listCountry(),
+    queryFn:  () => apiClient.listCountry(),
     ...QUERY_CONFIG.STATIC,
     ...options,
 });
 
 export const useCities = (options = {}) => useQuery({
     queryKey: QUERY_KEYS.cities,
-    queryFn:  () => ApiClient.listCity(),
+    queryFn:  () => apiClient.listCity(),
     ...QUERY_CONFIG.STATIC,
     ...options,
 });
 
 export const useCategories = (options = {}) => useQuery({
     queryKey: QUERY_KEYS.categories,
-    queryFn:  () => ApiClient.listCategorie(),
+    queryFn:  () => apiClient.listCategorie(),
     ...QUERY_CONFIG.STATIC,
     ...options,
 });
 
 export const useTags = (options = {}) => useQuery({
     queryKey: QUERY_KEYS.tags,
-    queryFn:  () => ApiClient.listTag(),
+    queryFn:  () => apiClient.listTag(),
     ...QUERY_CONFIG.STATIC,
     ...options,
 });
 
 export const useBoardings = (options = {}) => useQuery({
     queryKey: QUERY_KEYS.boardings,
-    queryFn:  () => ApiClient.listBoarding(),
+    queryFn:  () => apiClient.listBoarding(),
     ...QUERY_CONFIG.STATIC,
     ...options,
 });
@@ -75,7 +75,7 @@ export const useBoardings = (options = {}) => useQuery({
 export const useCurrencies = (options = {}) => useQuery({
     queryKey: QUERY_KEYS.currencies,
     queryFn:  async () => {
-        const data = await ApiClient.listCurrency();
+        const data = await apiClient.listCurrency();
         return data.currencies;
     },
     ...QUERY_CONFIG.STATIC,
@@ -89,7 +89,7 @@ export const useHotels = (cityId = null, options = {}) => {
     const { enabled = true, ...restOptions } = options;
     return useQuery({
         queryKey: cityId ? QUERY_KEYS.hotelsByCity(cityId) : QUERY_KEYS.hotels,
-        queryFn:  () => ApiClient.listHotel(cityId),
+        queryFn:  () => apiClient.listHotel(cityId),
         enabled,
         ...QUERY_CONFIG.SEMI_STATIC,
         ...restOptions,
@@ -105,7 +105,7 @@ export const useHotelsBatch = (hotelIds = [], options = {}) => {
     } = options;
     return useQuery({
         queryKey: QUERY_KEYS.hotelsBatch(hotelIds),
-        queryFn:  () => ApiClient.getHotelsBatch(hotelIds, { batchSize, delayBetweenBatches }),
+        queryFn:  () => apiClient.getHotelsBatch(hotelIds, { batchSize, delayBetweenBatches }),
         enabled:  enabled && hotelIds.length > 0,
         ...QUERY_CONFIG.SEMI_STATIC,
         refetchOnWindowFocus: false,
@@ -126,7 +126,7 @@ export const useHotelsEnhanced = (cityId = null, options = {}) => {
         queryKey: cityId
             ? [...QUERY_KEYS.hotelsByCity(cityId), "enhanced"]
             : [...QUERY_KEYS.hotels, "enhanced"],
-        queryFn: () => ApiClient.listHotelEnhanced(cityId, {
+        queryFn: () => apiClient.listHotelEnhanced(cityId, {
             batchSize,
             delayBetweenBatches,
             onProgress,
@@ -147,7 +147,7 @@ export const useHotelDetail = (hotelId, options = {}) => {
     return useQuery({
         queryKey: QUERY_KEYS.hotelDetail(hotelId),
         queryFn:  async () => {
-            const data = await ApiClient.getHotelDetail(hotelId);
+            const data = await apiClient.getHotelDetail(hotelId);
             if (data.errorMessage && data.errorMessage.length > 0) {
                 throw new Error(data.errorMessage[0]?.Description || "Failed to fetch hotel details");
             }
@@ -163,14 +163,14 @@ export const useHotelSearch = (searchParams, options = {}) => {
     const { enabled = false, ...restOptions } = options;
 
     useEffect(() => {
-        return () => { ApiClient.cancelRequest("hotelSearch"); };
+        return () => { apiClient.cancelRequest("hotelSearch"); };
     }, [searchParams?.checkIn, searchParams?.checkOut, searchParams?.hotels?.length]);
 
     return useQuery({
         queryKey: QUERY_KEYS.hotelSearch(searchParams),
         queryFn:  async () => {
             try {
-                const data = await ApiClient.searchHotel(searchParams);
+                const data = await apiClient.searchHotel(searchParams);
                 if (data.errorMessage && data.errorMessage.Code) {
                     throw new Error(data.errorMessage.Description || "Search failed");
                 }
@@ -193,7 +193,7 @@ export const useHotelSearch = (searchParams, options = {}) => {
 export const useHotelSearchMutation = (options = {}) => {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: (searchParams) => ApiClient.searchHotel(searchParams),
+        mutationFn: (searchParams) => apiClient.searchHotel(searchParams),
         onSuccess:  (data, variables) => {
             queryClient.setQueryData(QUERY_KEYS.hotelSearch(variables), data);
         },
@@ -232,14 +232,14 @@ export const useFilterData = () => {
 export const usePrefetchFilterData = () => {
     const queryClient = useQueryClient();
     useEffect(() => {
-        queryClient.prefetchQuery({ queryKey: QUERY_KEYS.countries,  queryFn: () => ApiClient.listCountry(),   ...QUERY_CONFIG.STATIC });
-        queryClient.prefetchQuery({ queryKey: QUERY_KEYS.cities,     queryFn: () => ApiClient.listCity(),      ...QUERY_CONFIG.STATIC });
-        queryClient.prefetchQuery({ queryKey: QUERY_KEYS.categories, queryFn: () => ApiClient.listCategorie(), ...QUERY_CONFIG.STATIC });
-        queryClient.prefetchQuery({ queryKey: QUERY_KEYS.tags,       queryFn: () => ApiClient.listTag(),       ...QUERY_CONFIG.STATIC });
-        queryClient.prefetchQuery({ queryKey: QUERY_KEYS.boardings,  queryFn: () => ApiClient.listBoarding(),  ...QUERY_CONFIG.STATIC });
+        queryClient.prefetchQuery({ queryKey: QUERY_KEYS.countries,  queryFn: () => apiClient.listCountry(),   ...QUERY_CONFIG.STATIC });
+        queryClient.prefetchQuery({ queryKey: QUERY_KEYS.cities,     queryFn: () => apiClient.listCity(),      ...QUERY_CONFIG.STATIC });
+        queryClient.prefetchQuery({ queryKey: QUERY_KEYS.categories, queryFn: () => apiClient.listCategorie(), ...QUERY_CONFIG.STATIC });
+        queryClient.prefetchQuery({ queryKey: QUERY_KEYS.tags,       queryFn: () => apiClient.listTag(),       ...QUERY_CONFIG.STATIC });
+        queryClient.prefetchQuery({ queryKey: QUERY_KEYS.boardings,  queryFn: () => apiClient.listBoarding(),  ...QUERY_CONFIG.STATIC });
         queryClient.prefetchQuery({
             queryKey: QUERY_KEYS.currencies,
-            queryFn:  async () => { const data = await ApiClient.listCurrency(); return data.currencies; },
+            queryFn:  async () => { const data = await apiClient.listCurrency(); return data.currencies; },
             ...QUERY_CONFIG.STATIC,
         });
     }, [queryClient]);
@@ -250,15 +250,15 @@ export const useInvalidateHotels = () => {
     return {
         invalidateAll: useCallback(() => {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
-            ApiClient.clearCache();
+            apiClient.clearCache();
         }, [queryClient]),
         invalidateByCity: useCallback((cityId) => {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelsByCity(cityId) });
-            ApiClient.clearCacheEntry(`hotels_city_${cityId}`);
+            apiClient.clearCacheEntry(`hotels_city_${cityId}`);
         }, [queryClient]),
         invalidateDetail: useCallback((hotelId) => {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelDetail(hotelId) });
-            ApiClient.clearCacheEntry(`hotel_${hotelId}`);
+            apiClient.clearCacheEntry(`hotel_${hotelId}`);
         }, [queryClient]),
         invalidateSearch: useCallback(() => {
             queryClient.invalidateQueries({ queryKey: ["hotelSearch"] });
@@ -270,12 +270,12 @@ export const useInvalidateHotels = () => {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tags });
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.boardings });
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.currencies });
-            ApiClient.clearCacheEntry("countries");
-            ApiClient.clearCacheEntry("cities");
-            ApiClient.clearCacheEntry("categories");
-            ApiClient.clearCacheEntry("tags");
-            ApiClient.clearCacheEntry("boarding");
-            ApiClient.clearCacheEntry("currencies");
+            apiClient.clearCacheEntry("countries");
+            apiClient.clearCacheEntry("cities");
+            apiClient.clearCacheEntry("categories");
+            apiClient.clearCacheEntry("tags");
+            apiClient.clearCacheEntry("boarding");
+            apiClient.clearCacheEntry("currencies");
         }, [queryClient]),
     };
 };
@@ -285,13 +285,13 @@ export const useCacheManager = () => {
     return {
         clearAll: useCallback(() => {
             queryClient.clear();
-            ApiClient.clearCache();
+            apiClient.clearCache();
             // ✅ Fix 2 — guarded
             if (import.meta.env.DEV) console.log("✅ All caches cleared");
         }, [queryClient]),
 
         getStats: useCallback(() => {
-            const apiClientStats  = ApiClient.getCacheStats();
+            const apiClientStats  = apiClient.getCacheStats();
             const reactQueryCache = queryClient.getQueryCache().getAll();
             return {
                 apiClient: apiClientStats,
@@ -309,7 +309,7 @@ export const useCacheManager = () => {
         }, [queryClient]),
 
         clearApiClientCache: useCallback(() => {
-            ApiClient.clearCache();
+            apiClient.clearCache();
             if (import.meta.env.DEV) console.log("✅ ApiClient cache cleared");
         }, []),
 
@@ -322,7 +322,7 @@ export const useCacheManager = () => {
 
 export const useApiClientLanguage = (language = "en") => {
     useEffect(() => {
-        ApiClient.setLanguage(language);
+        apiClient.setLanguage(language);
     }, [language]);
 };
 
@@ -335,7 +335,7 @@ export const useDebouncedHotelSearch = (searchParams, delay = 500) => {
         }, delay);
         return () => {
             clearTimeout(handler);
-            ApiClient.cancelRequest("hotelSearch");
+            apiClient.cancelRequest("hotelSearch");
         };
         // ✅ Fix 4 — stable comparison prevents debounce reset on every render
     }, [JSON.stringify(searchParams), delay]);

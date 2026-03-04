@@ -45,7 +45,7 @@ function Footer() {
             {/* Decorative top border */}
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-orange-500 to-blue-500" />
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 mb-12">
 
                     {/* Company Info */}
@@ -214,10 +214,10 @@ function Footer() {
                 </div>
 
                 {/* Bottom Bar */}
-                <div className="border-t border-white/10 pt-8">
+                <div className="border-t border-white/10 pt-6">
                     <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                         <p className="text-sm text-gray-400">
-                            © {CURRENT_YEAR} AllezGO Travel Agency. Tous droits réservés.
+                            Copyright © {CURRENT_YEAR} AllezGO Travel Agency.
                         </p>
                         <div className="flex items-center gap-4 text-sm flex-wrap justify-center">
                             <Link
@@ -242,9 +242,12 @@ function Footer() {
                             </Link>
                         </div>
                     </div>
-                    <div className="text-center mt-4">
+                    <div className="text-center mt-6">
                         <p className="text-xs text-white font-mono flex items-center justify-center gap-1">
-                            Designed by <FaHeart className="text-red-500 animate-pulse" /> NIZAR ILAHI
+                            Designed by <FaHeart className="text-red-500 animate-pulse" />NIZAR ILAHI<FaHeart className="text-red-500 animate-pulse" />
+                        </p>
+                        <p className="text-xs text-white font-mono flex items-center justify-center gap-1">
+                            2MCoding©2026. All rights reserved
                         </p>
                     </div>
                 </div>

@@ -7,11 +7,34 @@
  * and hotel listings. No component-specific logic here — pure functions only.
  */
 
+// ─── Internal utils ───────────────────────────────────────────────────────────
+
+/**
+ * Safely normalizes any value to a positive number or null.
+ * Accepts numbers or numeric strings like "15000".
+ * @param {unknown} value
+ * @returns {number|null}
+ */
+const toPositiveNumber = (value) => {
+    if (value === null || value === undefined) return null;
+
+    const n =
+        typeof value === "number"
+            ? value
+            : typeof value === "string"
+                ? Number(value.replace(/\s+/g, ""))
+                : NaN;
+
+    if (Number.isNaN(n) || n <= 0) return null;
+    return n;
+};
+
 // ─── Price Extraction ──────────────────────────────────────────────────────────
 
 /**
  * Extracts all available numeric prices from a destination's pricing object.
  * Handles all known pricing shapes: flat triple/double, hotel3Star, hotel4Star.
+ * Also accepts numeric strings like "15000".
  * @param {Object} pricing - destination.pricing
  * @returns {number[]} Array of all valid prices found
  */
@@ -21,19 +44,24 @@ export const getAllPrices = (pricing) => {
     const prices = [];
 
     // Flat pricing: { double: 15000, triple: 12000 }
-    if (typeof pricing.double === "number") prices.push(pricing.double);
-    if (typeof pricing.triple === "number") prices.push(pricing.triple);
+    const flatDouble = toPositiveNumber(pricing.double);
+    const flatTriple = toPositiveNumber(pricing.triple);
+    if (flatDouble !== null) prices.push(flatDouble);
+    if (flatTriple !== null) prices.push(flatTriple);
 
-    // Nested hotel-tier pricing: { hotel3Star: { double, triple }, hotel4Star: { double, triple } }
+    // Nested hotel-tier pricing: { hotel3Star: { double, triple }, hotel4Star: { double, triple }, hotel5Star: {...} }
     const tiers = ["hotel3Star", "hotel4Star", "hotel5Star"];
     tiers.forEach((tier) => {
-        if (pricing[tier] && typeof pricing[tier] === "object") {
-            if (typeof pricing[tier].double === "number") prices.push(pricing[tier].double);
-            if (typeof pricing[tier].triple === "number") prices.push(pricing[tier].triple);
-        }
+        const tierObj = pricing[tier];
+        if (!tierObj || typeof tierObj !== "object") return;
+
+        const tierDouble = toPositiveNumber(tierObj.double);
+        const tierTriple = toPositiveNumber(tierObj.triple);
+        if (tierDouble !== null) prices.push(tierDouble);
+        if (tierTriple !== null) prices.push(tierTriple);
     });
 
-    return prices.filter((p) => p > 0);
+    return prices;
 };
 
 /**
@@ -57,16 +85,34 @@ export const getStartingPrice = (destination) => {
  * @param {number|null} price
  * @param {string} currency  Currency code, default "DZD"
  * @param {string} locale    BCP 47 locale tag, default "fr-DZ"
- * @returns {string} e.g. "15 000 DZD" or "—" if price is null
+ * @param {Object} [options]
+ * @param {boolean} [options.withCurrency=true]  When false, returns just the number (e.g. "15 000")
+ * @returns {string} e.g. "15 000 DZD" or "—" if price is null
  */
-export const formatPrice = (price, currency = "DZD", locale = "fr-DZ") => {
-    if (price === null || price === undefined || isNaN(price)) return "—";
+export const formatPrice = (
+    price,
+    currency = "DZD",
+    locale = "fr-DZ",
+    options = {},
+) => {
+    const n = toPositiveNumber(price);
+    if (n === null) return "—";
+
+    const { withCurrency = true } = options;
+
+    if (!withCurrency) {
+        return new Intl.NumberFormat(locale, {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+        }).format(n);
+    }
+
     return new Intl.NumberFormat(locale, {
         style: "currency",
         currency,
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
-    }).format(price);
+    }).format(n);
 };
 
 /**

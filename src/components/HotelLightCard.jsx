@@ -56,6 +56,25 @@ const buildBoardingFromRooms = (rooms) => {
     return Array.from(map.values());
 };
 
+// ✅ PATCH 1 — builds /hotels/:id?checkin=...&checkout=...&rooms=...
+const buildDetailUrl = (hotelId, searchParams) => {
+    const p = new URLSearchParams();
+    if (searchParams?.checkIn)  p.set('checkin',  searchParams.checkIn);
+    if (searchParams?.checkOut) p.set('checkout', searchParams.checkOut);
+    if (searchParams?.rooms?.length) {
+        try {
+            const normalized = searchParams.rooms.map(r => ({
+                adults:    r.adults    ?? 2,
+                children:  Array.isArray(r.children) ? r.children.length : (r.children ?? 0),
+                childAges: Array.isArray(r.children) ? r.children : (r.childAges ?? []),
+            }));
+            p.set('rooms', encodeURIComponent(JSON.stringify(normalized)));
+        } catch { /* skip silently */ }
+    }
+    const qs = p.toString();
+    return `/hotels/${hotelId}${qs ? `?${qs}` : ''}`;
+};
+
 // ── Component ──────────────────────────────────────────────────────────────────
 function HotelLightCard({
                             hotel,
@@ -152,6 +171,12 @@ function HotelLightCard({
         if (!pricing?.minPrice || !nights) return null;
         return pricing.minPrice * nights;
     }, [pricing?.minPrice, nights]);
+
+    // ✅ PATCH 2 — pre-built detail URL with full search context
+    const detailUrl = useMemo(
+        () => buildDetailUrl(Id, searchParams),
+        [Id, searchParams]
+    );
 
     // ── Fetch availability (fallback when no preloadedAvailability) ───────────
     // ✅ Fix #1 — showTarifs removed from deps; ref used for toast guard instead
@@ -258,10 +283,11 @@ function HotelLightCard({
         }
     }, [onBook, hotel, navigate, Id, searchParams, nights]);
 
+    // ✅ PATCH 3 — now navigates with full search context via detailUrl
     const handleViewDetail = useCallback(() => {
-        if (onViewDetail) onViewDetail(Id);
-        else navigate(`/hotels/${Id}`);
-    }, [onViewDetail, navigate, Id]);
+        if (onViewDetail) { onViewDetail(Id); return; }
+        navigate(detailUrl);
+    }, [onViewDetail, navigate, Id, detailUrl]);
 
     // ── Render ─────────────────────────────────────────────────────────────────
     return (

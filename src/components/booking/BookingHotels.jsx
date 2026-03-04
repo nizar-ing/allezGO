@@ -4,50 +4,43 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useQuery } from '@tanstack/react-query';
-
 import Button from "../../ui/Button.jsx";
 import LocationSearch from './LocationSearch';
 import DateRangePicker from './DateRangePicker';
 import GuestRoomSelector from './GuestRoomSelector';
 import { formatDateForAPI, calculateNights } from '../../utils/dateHelpers';
-
 import apiClient from "../../services/ApiClient.js";
 
 const DEFAULT_CITY_ID = 34; // Sousse
 
 const getDefaultRange = () => {
-    // one night from today -> tomorrow (both at midnight)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    return { from: today, to: tomorrow };
+    const afterTomorrow = new Date(tomorrow);
+    afterTomorrow.setDate(tomorrow.getDate() + 1);
+
+    return { from: tomorrow, to: afterTomorrow };
+
 };
 
 function BookingHotels() {
     const navigate = useNavigate();
     const [isPending, startTransition] = useTransition();
-
-    const [selectedCity, setSelectedCity] = useState(null);
+    const [selectedCity, setSelectedCity]   = useState(null);
     const [selectedHotel, setSelectedHotel] = useState(null);
-
-    // default is city search since we default a city
     const [selectionType, setSelectionType] = useState('city');
+    const [range, setRange]   = useState(getDefaultRange);
+    const [rooms, setRooms]   = useState([{ id: 1, adults: 2, children: [] }]);
 
-    // default: today -> tomorrow
-    const [range, setRange] = useState(getDefaultRange);
-
-    const [rooms, setRooms] = useState([{ id: 1, adults: 2, children: [] }]);
-
-    // ✅ FIX: ensure default city is applied only once (won’t fight user focus/typing)
     const defaultCityAppliedRef = useRef(false);
 
-    // Fetch cities to set the real "Sousse" object (full shape)
     const { data: citiesData } = useQuery({
         queryKey: ['cities'],
-        queryFn: () => apiClient.listCity(),
+        queryFn:  () => apiClient.listCity(),
         staleTime: 10 * 60 * 1000,
     });
 
@@ -56,11 +49,9 @@ function BookingHotels() {
         return citiesData.find(c => c?.Id === DEFAULT_CITY_ID) ?? null;
     }, [citiesData]);
 
-    // ✅ Apply default city once (never override user control on focus / edits)
     useEffect(() => {
         if (!defaultCity) return;
         if (defaultCityAppliedRef.current) return;
-
         defaultCityAppliedRef.current = true;
         setSelectedCity(defaultCity);
         setSelectedHotel(null);
@@ -75,7 +66,12 @@ function BookingHotels() {
 
     const handleHotelSelect = useCallback((hotel) => {
         setSelectedHotel(hotel);
-        setSelectedCity(hotel.City || null);
+        setSelectedCity(null); // ✅ FIX: don't set selectedCity on hotel selection —
+                               // it pollutes selectionLabel in LocationSearch which
+                               // checks selectedCity first, causing the city name to
+                               // be shown instead of the hotel name (hotel selection
+                               // appears ignored). Hotel city info is read directly
+                               // from selectedHotel.City inside handleSearch.
         setSelectionType('hotel');
     }, []);
 
@@ -114,46 +110,47 @@ function BookingHotels() {
     const handleSearch = useCallback(() => {
         if (!validateSearch()) return;
 
-        const checkInFormatted = formatDateForAPI(range.from);
+        const checkInFormatted  = formatDateForAPI(range.from);
         const checkOutFormatted = formatDateForAPI(range.to);
-        const nights = calculateNights(range.from, range.to);
+        const nights            = calculateNights(range.from, range.to);
 
         const searchParams = new URLSearchParams();
         searchParams.append('selectionType', selectionType);
 
         if (selectionType === 'city') {
-            searchParams.append('cityId', selectedCity.Id);
-            searchParams.append('cityName', selectedCity.Name);
+            searchParams.append('cityId',      String(Number(selectedCity.Id)));
+            searchParams.append('cityName',    selectedCity.Name);
             if (selectedCity.Country?.Name) {
                 searchParams.append('countryName', selectedCity.Country.Name);
             }
         } else if (selectionType === 'hotel') {
-            searchParams.append('hotelId', selectedHotel.Id);
+            searchParams.append('hotelId',   String(Number(selectedHotel.Id)));
             searchParams.append('hotelName', selectedHotel.Name);
-            if (selectedHotel.City?.Id) searchParams.append('cityId', selectedHotel.City.Id);
+            // ✅ city info is read from selectedHotel.City (selectedCity is null by design)
+            if (selectedHotel.City?.Id)   searchParams.append('cityId',   String(Number(selectedHotel.City.Id)));
             if (selectedHotel.City?.Name) searchParams.append('cityName', selectedHotel.City.Name);
+            if (selectedHotel.City?.Country?.Name) searchParams.append('countryName', selectedHotel.City.Country.Name);
         }
 
-        searchParams.append('checkIn', checkInFormatted);
+        searchParams.append('checkIn',  checkInFormatted);
         searchParams.append('checkOut', checkOutFormatted);
 
-        // children serialized as age numbers
         const roomsData = rooms.map(room => ({
-            adults: room.adults,
-            children: room.children.map(child => child.age), // number[]
+            adults:   room.adults,
+            children: room.children.map(child => child.age),
         }));
 
-        searchParams.append('rooms', JSON.stringify(roomsData));
+        searchParams.append('rooms',  JSON.stringify(roomsData));
         searchParams.append('nights', nights);
 
         if (import.meta.env.DEV) {
             console.log('🔍 Search Params:', {
                 selectionType,
-                cityId: selectedCity?.Id,
-                hotelId: selectedHotel?.Id,
-                checkIn: checkInFormatted,
+                cityId:   selectedCity?.Id  ?? selectedHotel?.City?.Id,
+                hotelId:  selectedHotel?.Id,
+                checkIn:  checkInFormatted,
                 checkOut: checkOutFormatted,
-                rooms: roomsData,
+                rooms:    roomsData,
                 nights,
             });
         }

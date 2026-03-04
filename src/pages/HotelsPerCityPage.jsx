@@ -16,6 +16,15 @@ import HotelLightCard from '../components/HotelLightCard.jsx';
 import Loader from '../ui/Loader.jsx';
 import {normalizeHotelForCard} from '../utils/normalizeHotel';
 
+
+const COUNTRY_BANNERS = {
+    tunisie:  '/images/tunisie_hotels.jpeg',
+    algerie:  '/images/algerie_hotels.jpeg',
+    // extend here for future countries
+};
+
+const FALLBACK_BANNER = '/images/tunisie_hotels.jpeg';
+
 // ── Pure utilities ─────────────────────────────────────────────────────────────
 const getDefaultDates = () => {
     const today    = new Date();
@@ -405,17 +414,26 @@ function HotelsPerCityPage() {
         {value: 'name-asc',    label: 'Nom A-Z'},
     ];
 
+
     const getBannerImage = () => {
-        if (displayedHotels.length > 0 && displayedHotels[0].Album?.[0])
+        // Priority 1: country-based image from cityInfo
+        const countryName = cityInfo?.Country?.Name ?? '';
+        const countryKey  = countryName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+        const countryMatch = Object.keys(COUNTRY_BANNERS).find((key) =>
+            countryKey.includes(key)
+        );
+        if (countryMatch) return COUNTRY_BANNERS[countryMatch];
+
+        // Priority 2: first hotel's album photo (existing behavior)
+        if (displayedHotels.length > 0 && displayedHotels[0].Album?.[0]) {
             return displayedHotels[0].Album[0];
-        const cityBanners = {
-            10: 'https://images.unsplash.com/photo-1548013146-72479768bada?w=1200',
-            18: 'https://images.unsplash.com/photo-1580837119756-563d608dd119?w=1200',
-            33: 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=1200',
-        };
-        return cityBanners[cityId]
-            ?? 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200';
+        }
+
+        // Priority 3: hardcoded fallback
+        return FALLBACK_BANNER;
     };
+
 
     const formatDate = (dateString) => {
         if (!dateString) return '';
@@ -470,7 +488,7 @@ function HotelsPerCityPage() {
                 <img
                     src={getBannerImage()}
                     alt={cityInfo?.Name}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-fill"
                     onError={e =>
                         e.target.src = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200'}
                 />

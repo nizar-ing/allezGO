@@ -1,6 +1,6 @@
 // src/components/HotelCard.jsx
-import { memo } from "react";
-import { Link } from "react-router-dom";
+import { memo, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
     MapPin, Star, Images, Eye, Sparkles,
     Utensils, Wifi, Dumbbell, Car, Waves,
@@ -85,9 +85,16 @@ const getThemeStyle = (theme) => {
     return THEME_STYLE_MAP.find(({ test }) => test(lower)) ?? DEFAULT_THEME_STYLE;
 };
 
+// ── 🆕 buildDetailUrl: preserves all active search params on navigation ───────
+const buildDetailUrl = (id, searchParams) => {
+    const params = new URLSearchParams(searchParams);
+    const qs = params.toString();
+    return `/hotel/${id}${qs ? `?${qs}` : ""}`;
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 
-const HotelCard = memo(function HotelCard({ hotel, className = "" }) {
+const HotelCard = memo(function HotelCard({ hotel, searchParams: searchParamsProp, className = "" }) {
     if (!hotel) return null;
 
     const {
@@ -104,6 +111,16 @@ const HotelCard = memo(function HotelCard({ hotel, className = "" }) {
         Theme      = [],
         _enhanced,
     } = hotel;
+
+    // 🆕 Navigation hooks
+    const navigate = useNavigate();
+    const [urlSearchParams] = useSearchParams();
+
+    // 🆕 Stable URL: uses caller-supplied params OR the current URL params
+    const detailUrl = useMemo(
+        () => buildDetailUrl(Id, searchParamsProp ?? urlSearchParams),
+        [Id, searchParamsProp, urlSearchParams]
+    );
 
     // ✅ Double-guard: catches null, undefined, "" before any request is made
     const imageSrc = Image || FALLBACK_IMAGE;
@@ -289,16 +306,16 @@ const HotelCard = memo(function HotelCard({ hotel, className = "" }) {
 
                 <div className="flex-1 min-h-[8px]" />
 
-                {/* CTA Button */}
-                <Link
-                    to={`/hotel/${Id}`}
+                {/* 🆕 CTA Button — was <Link>, now <button> with navigate(detailUrl) */}
+                <button
+                    onClick={() => navigate(detailUrl)}
                     className="group/btn relative w-full inline-flex justify-center items-center gap-2 font-bold text-white rounded-xl overflow-hidden transition-all duration-300 py-3 px-4 text-sm shadow-lg hover:shadow-xl active:scale-95 focus:outline-none focus:ring-4 focus:ring-sky-300/50"
                 >
                     <div className="absolute inset-0 bg-gradient-to-r from-sky-500 via-sky-700 to-sky-800" />
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover/btn:translate-x-full transition-transform duration-1000" />
                     <Eye className="w-5 h-5 relative z-10 group-hover/btn:rotate-12 transition-transform duration-300" />
                     <span className="relative z-10 tracking-wide">Voir les détails</span>
-                </Link>
+                </button>
             </div>
         </article>
     );
