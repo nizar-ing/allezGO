@@ -5,6 +5,7 @@ import {
     Heart, MapPin, Star, Wifi, Car, Utensils, Waves,
     Wind, Coffee, Dumbbell, Sparkles, ChevronRight,
     CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Loader2,
+    Baby, // ✅ NEW
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import apiClient from '../services/ApiClient';
@@ -45,6 +46,13 @@ const getFacilityIcon = (title = '') => {
     return CheckCircle2;
 };
 
+// ✅ NEW — FreeChild badge helper
+const getFreeChildInfo = (freeChild) => {
+    if (!Array.isArray(freeChild) || freeChild.length === 0) return null;
+    const maxAge = Math.max(...freeChild.map((fc) => fc.Age));
+    return {count: freeChild.length, maxAge};
+};
+
 // ── Helper: build boarding tabs from a flat rooms array ───────────────────────
 const buildBoardingFromRooms = (rooms) => {
     if (!rooms?.length) return [];
@@ -80,7 +88,7 @@ function HotelLightCard({
                             hotel,
                             onFavoriteToggle,
                             pricing               = null,
-                            preloadedAvailability = null,   // ✅ NEW — rooms[] from parent's searchHotel call
+                            preloadedAvailability = null,
                             onBook                = null,
                             onViewDetail          = null,
                             showBookButton        = false,
@@ -92,7 +100,6 @@ function HotelLightCard({
 
     // ── Refs ───────────────────────────────────────────────────────────────────
     const cardRef       = useRef(null);
-    // ✅ Fix #1 — ref tracks open state without entering fetchAvailability deps
     const showTarifsRef = useRef(false);
 
     // ── UI state ───────────────────────────────────────────────────────────────
@@ -102,7 +109,6 @@ function HotelLightCard({
     const [isLoading,   setIsLoading]   = useState(false);
 
     // ── Dynamic API state ──────────────────────────────────────────────────────
-    // ✅ Lazy init from preloadedAvailability — if provided, panel is instant
     const [allRooms, setAllRooms] = useState(
         () => preloadedAvailability ?? []
     );
@@ -115,17 +121,13 @@ function HotelLightCard({
     const [noAvailability, setNoAvailability] = useState(
         () => preloadedAvailability !== null && preloadedAvailability.length === 0
     );
-    // ✅ hasFetched = true immediately if preloadedAvailability was provided
-    //    → IntersectionObserver prefetch and button-click fetch are both skipped
     const [hasFetched, setHasFetched] = useState(
         () => preloadedAvailability !== null
     );
 
-    // ── Sync when preloadedAvailability updates (e.g. parent date change) ──────
+    // ── Sync when preloadedAvailability updates ────────────────────────────────
     useEffect(() => {
-        // null means pricing is loading — don't reset to avoid flicker
         if (preloadedAvailability === null) return;
-
         const boarding = buildBoardingFromRooms(preloadedAvailability);
         setAllRooms(preloadedAvailability);
         setAvailableBoarding(boarding);
@@ -139,16 +141,15 @@ function HotelLightCard({
         Id, Name, Category, City,
         ShortDescription, Description,
         Image, Album = [], Facilities = [],
+        FreeChild, // ✅ NEW
     } = hotel;
 
     // ── Derived ────────────────────────────────────────────────────────────────
     const hotelImage = useMemo(() => {
-        // Album[0] is always a URL string after normalization
         if (Album.length > 0) return Album[0];
         return Image || 'https://loremflickr.com/600/400/hotel,luxury?lock=42';
     }, [Album, Image]);
 
-    // ✅ Fix #2 — full decoded text, no JS truncation; line-clamp-3 handles overflow
     const shortDesc = useMemo(() => {
         const raw = ShortDescription || Description || '';
         return stripHtml(raw);
@@ -166,20 +167,20 @@ function HotelLightCard({
         return allRooms.filter(r => r.boardingCode === selectedBoarding);
     }, [allRooms, selectedBoarding]);
 
-    // ✅ totalPrice = minPrice × nights
     const totalPrice = useMemo(() => {
         if (!pricing?.minPrice || !nights) return null;
         return pricing.minPrice * nights;
     }, [pricing?.minPrice, nights]);
 
-    // ✅ PATCH 2 — pre-built detail URL with full search context
     const detailUrl = useMemo(
         () => buildDetailUrl(Id, searchParams),
         [Id, searchParams]
     );
 
-    // ── Fetch availability (fallback when no preloadedAvailability) ───────────
-    // ✅ Fix #1 — showTarifs removed from deps; ref used for toast guard instead
+    // ✅ NEW — FreeChild badge info
+    const freeChildInfo = useMemo(() => getFreeChildInfo(FreeChild), [FreeChild]);
+
+    // ── Fetch availability ─────────────────────────────────────────────────────
     const fetchAvailability = useCallback(async () => {
         if (!searchParams?.checkIn || !searchParams?.checkOut) return;
 
@@ -214,7 +215,6 @@ function HotelLightCard({
 
         } catch (err) {
             if (!err.isCancelled) {
-                // ✅ Fix #1 — reads ref, not captured state value
                 if (showTarifsRef.current)
                     toast.error('Erreur lors de la recherche de disponibilités.');
                 setNoAvailability(true);
@@ -223,10 +223,9 @@ function HotelLightCard({
         } finally {
             setIsLoading(false);
         }
-    }, [Id, searchParams]); // ✅ showTarifs gone — stable across panel open/close
+    }, [Id, searchParams]);
 
-    // ── Option C — Viewport prefetch (only when no preloaded data) ────────────
-    // hasFetched = true when preloadedAvailability exists → observer never fires
+    // ── Viewport prefetch ──────────────────────────────────────────────────────
     useEffect(() => {
         if (!searchParams?.checkIn || !searchParams?.checkOut) return;
         if (hasFetched) return;
@@ -244,19 +243,17 @@ function HotelLightCard({
             {threshold: 0.1, rootMargin: '200px'}
         );
         observer.observe(el);
-        // ✅ Fix #6 — disconnect is universally safe even if el is unmounted
         return () => observer.disconnect();
     }, [searchParams, hasFetched, fetchAvailability]);
 
     // ── Handlers ──────────────────────────────────────────────────────────────
     const handleToggleTarifs = useCallback(() => {
         const next = !showTarifs;
-        showTarifsRef.current = next;          // ✅ Fix #1 — keep ref in sync
+        showTarifsRef.current = next;
         setShowTarifs(next);
         if (next && !hasFetched) void fetchAvailability();
     }, [showTarifs, hasFetched, fetchAvailability]);
 
-    // ✅ Fix #3 — fetchAvailability is already self-resetting
     const handleRefresh = useCallback(() => {
         void fetchAvailability();
     }, [fetchAvailability]);
@@ -283,7 +280,6 @@ function HotelLightCard({
         }
     }, [onBook, hotel, navigate, Id, searchParams, nights]);
 
-    // ✅ PATCH 3 — now navigates with full search context via detailUrl
     const handleViewDetail = useCallback(() => {
         if (onViewDetail) { onViewDetail(Id); return; }
         navigate(detailUrl);
@@ -360,12 +356,24 @@ function HotelLightCard({
 
                         {/* Name + City */}
                         <div>
-                            <h3
-                                className="font-bold text-gray-800 text-lg sm:text-xl leading-tight cursor-pointer hover:text-sky-700 transition-colors line-clamp-1 mb-1"
-                                onClick={handleViewDetail}
-                            >
-                                {Name}
-                            </h3>
+                            {/* ✅ NEW — flex row wraps Name + FreeChild badge together */}
+                            <div className="flex items-center flex-wrap gap-2 mb-1">
+                                <h3
+                                    className="font-bold text-gray-800 text-lg sm:text-xl leading-tight cursor-pointer hover:text-sky-700 transition-colors line-clamp-1"
+                                    onClick={handleViewDetail}
+                                >
+                                    {Name}
+                                </h3>
+
+                                {/* ✅ NEW — Enfants gratuits badge */}
+                                {freeChildInfo && (
+                                    <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-semibold px-2.5 py-1 rounded-full border border-emerald-200 whitespace-nowrap">
+                                        <Baby size={12}/>
+                                        {freeChildInfo.count} enfant{freeChildInfo.count > 1 ? 's' : ''} gratuit{freeChildInfo.count > 1 ? 's' : ''} jusqu'à {freeChildInfo.maxAge} ans
+                                    </span>
+                                )}
+                            </div>
+
                             <div className="flex items-center gap-1.5 text-gray-500 text-sm">
                                 <MapPin size={14} className="text-sky-500 flex-shrink-0"/>
                                 <span className="truncate">
@@ -534,7 +542,6 @@ function HotelLightCard({
                                     </p>
                                 ) : (
                                     filteredRooms.map(room => {
-                                        // ✅ Fix #4 — strict nights >= 1 guard
                                         const roomTotal = room.price != null && nights >= 1
                                             ? room.price * nights
                                             : room.price;
