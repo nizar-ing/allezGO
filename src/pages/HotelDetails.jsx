@@ -147,7 +147,7 @@ function HotelDetails() {
     const [availableRooms, setAvailableRooms] = useState([]);
     const [isSearchingRooms, setIsSearchingRooms] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
-    const [activeBoardingTab, setActiveBoardingTab] = useState("ALL");
+    const [activeBoardingTab, setActiveBoardingTab] = useState(null);
 
     // ── Derived ────────────────────────────────────────────────────────────────
     const checkInDate = useMemo(() => toDateString(range.from), [range.from]);
@@ -161,7 +161,8 @@ function HotelDetails() {
     const boardingTabs = useMemo(() => {
         if (!availableRooms.length) return [];
         const seen = new Set();
-        const result = [{code: "ALL", label: "Tous les types", count: availableRooms.length}];
+        const result = [];
+
         availableRooms.forEach((r) => {
             if (!seen.has(r.boardingCode)) {
                 seen.add(r.boardingCode);
@@ -176,9 +177,10 @@ function HotelDetails() {
     }, [availableRooms]);
 
     const filteredRooms = useMemo(
-        () => activeBoardingTab === "ALL"
+        () => !activeBoardingTab
             ? availableRooms
             : availableRooms.filter((r) => r.boardingCode === activeBoardingTab),
+
         [availableRooms, activeBoardingTab]
     );
 
@@ -234,7 +236,8 @@ function HotelDetails() {
     const resetSearchState = useCallback(() => {
         setHasSearched(false);
         setAvailableRooms([]);
-        setActiveBoardingTab("ALL");
+        setActiveBoardingTab(null);
+
     }, []);
 
     const handleSetRange = useCallback((newRange) => {
@@ -271,8 +274,10 @@ function HotelDetails() {
             });
             const fetchedRooms = response.rooms ?? [];
             setAvailableRooms(fetchedRooms);
-            setActiveBoardingTab("ALL");
+            const firstCode = fetchedRooms.length > 0 ? fetchedRooms[0].boardingCode : null;
+            setActiveBoardingTab(firstCode);
             setHasSearched(true);
+
             if (fetchedRooms.length > 0) {
                 toast.success(`${fetchedRooms.length} option${fetchedRooms.length > 1 ? "s" : ""} disponible${fetchedRooms.length > 1 ? "s" : ""} !`);
             } else {
@@ -314,9 +319,9 @@ function HotelDetails() {
             checkIn: checkInDate,
             checkOut: checkOutDate,
             nights,
-            boardingType: activeBoardingTab === "ALL"
-                ? (filteredRooms.find((r) => r.id === rooms[0]?.selectedRoomType)?.boardingCode ?? "BB")
-                : activeBoardingTab,
+            boardingType: activeBoardingTab
+                ?? (filteredRooms.find((r) => r.id === rooms[0]?.selectedRoomType)?.boardingCode ?? "BB"),
+
             rooms: rooms.map((room) => {
                 const sel = filteredRooms.find((r) => r.id === room.selectedRoomType);
                 return {
