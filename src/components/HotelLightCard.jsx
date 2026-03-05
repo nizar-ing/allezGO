@@ -386,7 +386,7 @@ function HotelLightCard({
                         <h3 className="text-base lg:text-xl font-extrabold text-gray-600 leading-tight tracking-tight">{Name}</h3>
                         {freeChildInfo && (
                             <span
-                                className="inline-flex items-center gap-1 bg-emerald-500 text-xs text-white border border-emerald-200 font-bold px-2.5 py-1 rounded-full shrink-0 shadow-sm">
+                                className="inline-flex items-center gap-1 bg-emerald-500 text-xs lg:text-sm text-white border border-emerald-200 font-bold px-3 py-1.5 rounded-full shrink-0 shadow-sm">
                                 <Baby size={18}/>
                                 {freeChildInfo.count} enfant{freeChildInfo.count > 1 ? 's' : ''} gratuit{freeChildInfo.count > 1 ? 's' : ''} jusqu'à {freeChildInfo.maxAge} ans
                           </span>
