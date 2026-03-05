@@ -296,18 +296,24 @@ function SearchResultsPage() {
         localStorage.setItem("favoriteHotels", JSON.stringify(favs));
     }, []);
 
+    const buildHotelUrl = useCallback((id) => {
+        const p = new URLSearchParams();
+        if (checkIn)  p.set('checkin',  checkIn);
+        if (checkOut) p.set('checkout', checkOut);
+        if (rooms?.length) {
+            try { p.set('rooms', encodeURIComponent(JSON.stringify(rooms))); } catch {}
+        }
+        const qs = p.toString();
+        return `/hotel/${id}${qs ? `?${qs}` : ''}`;
+    }, [checkIn, checkOut, rooms]);
+
     const handleViewHotelDetail = useCallback((id) => {
-        navigate(`/hotel/${id}`, {
-            state: { searchParams: { checkIn, checkOut, rooms }, returnUrl: window.location.pathname + window.location.search },
-        });
-    }, [navigate, checkIn, checkOut, rooms]);
+        navigate(buildHotelUrl(id));  // ✅ URL params carried
+    }, [navigate, buildHotelUrl]);
 
     const handleBookHotel = useCallback((hotel) => {
-        navigate(`/hotel/${hotel.Id}`, {
-            state: { searchParams: { checkIn, checkOut, rooms }, bookingIntent: true, nights },
-        });
-        toast.success(`Réservation pour ${hotel.Name}`, { duration: 2000 });
-    }, [navigate, checkIn, checkOut, rooms, nights]);
+        navigate(buildHotelUrl(hotel.Id));  // ✅ same
+    }, [navigate, buildHotelUrl]);
 
     // ── Helpers ─────────────────────────────────────────────────────────────────
     const totalGuests = useMemo(() => ({

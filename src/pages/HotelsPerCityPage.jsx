@@ -311,32 +311,30 @@ function HotelsPerCityPage() {
         toast.loading('Recherche des prix en cours...', {duration: 2000});
     };
 
-    const handleBookHotel = useCallback((hotel) => {
-        const nights = Math.ceil(
-            (new Date(searchParams.checkOut) - new Date(searchParams.checkIn))
-            / (1000 * 60 * 60 * 24)
-        );
-        navigate(
-            `/hotels-search?hotelId=${hotel.Id}` +
-            `&checkIn=${searchParams.checkIn}` +
-            `&checkOut=${searchParams.checkOut}` +
-            `&rooms=${encodeURIComponent(JSON.stringify(searchParams.rooms))}`,
-            {
-                state: {
-                    searchCriteria: {
-                        checkIn:  searchParams.checkIn,
-                        checkOut: searchParams.checkOut,
-                        rooms:    searchParams.rooms,
-                        nights,
-                    },
-                },
-            }
-        );
-    }, [navigate, searchParams]);
+    const buildHotelUrl = useCallback((hotelId) => {
+        const p = new URLSearchParams();
+        if (searchParams.checkIn)  p.set('checkin',  searchParams.checkIn);
+        if (searchParams.checkOut) p.set('checkout', searchParams.checkOut);
+        if (searchParams.rooms?.length) {
+            try { p.set('rooms', encodeURIComponent(JSON.stringify(
+                searchParams.rooms.map(r => ({
+                    adults:    r.adults,
+                    children:  r.children.length,
+                    childAges: r.children,
+                }))
+            ))); } catch {}
+        }
+        const qs = p.toString();
+        return `/hotel/${hotelId}${qs ? `?${qs}` : ''}`;
+    }, [searchParams]);
 
     const handleViewHotelDetail = useCallback((hotelId) => {
-        navigate(`/hotel/${hotelId}`);
-    }, [navigate]);
+        navigate(buildHotelUrl(hotelId));  // ✅ dates + rooms passed
+    }, [navigate, buildHotelUrl]);
+
+    const handleBookHotel = useCallback((hotel) => {
+        navigate(buildHotelUrl(hotel.Id));  // ✅ goes to HotelDetails, not SearchResults
+    }, [navigate, buildHotelUrl]);
 
     // ── Room management ────────────────────────────────────────────────────────
     const handleAddRoom = () =>

@@ -71,7 +71,7 @@ const buildDetailUrl = (hotelId, searchParams) => {
         }
     }
     const qs = p.toString();
-    return `/hotels/${hotelId}${qs ? `?${qs}` : ''}`;
+    return `/hotel/${hotelId}${qs ? `?${qs}` : ''}`;
 };
 
 const initSelectionForBoarding = (paxData, boardingCode) => {
@@ -273,16 +273,9 @@ function HotelLightCard({
     }, [isFavorite, Id, onFavoriteToggle]);
 
     const handleBook = useCallback((room) => {
-        if (onBook) {
-            onBook(hotel, room);
-            return;
-        }
-        navigate(
-            `/hotels-search?hotelId=${Id}&checkIn=${searchParams?.checkIn}&checkOut=${searchParams?.checkOut}` +
-            `&rooms=${encodeURIComponent(JSON.stringify(searchParams?.rooms ?? []))}`,
-            {state: {hotel, selectedRoom: room, searchParams, nights}}
-        );
-    }, [onBook, hotel, navigate, Id, searchParams, nights]);
+        if (onBook) { onBook(hotel, room); return; }
+        navigate(detailUrl);  // ✅ /hotel/:id?checkin=...&checkout=...&rooms=...
+    }, [onBook, hotel, navigate, detailUrl]);
 
     const handleBookAll = useCallback(() => {
         const selectedRoomsList = effectiveRoomsByPax
@@ -290,16 +283,9 @@ function HotelLightCard({
                 pax.rooms.find(r => r.id === selectedRooms[idx] && r.boardingCode === selectedBoarding) ?? null
             )
             .filter(Boolean);
-        if (onBook) {
-            onBook(hotel, selectedRoomsList);
-            return;
-        }
-        navigate(
-            `/hotels-search?hotelId=${Id}&checkIn=${searchParams?.checkIn}&checkOut=${searchParams?.checkOut}` +
-            `&rooms=${encodeURIComponent(JSON.stringify(searchParams?.rooms ?? []))}`,
-            {state: {hotel, selectedRooms: selectedRoomsList, searchParams, nights}}
-        );
-    }, [effectiveRoomsByPax, selectedRooms, selectedBoarding, onBook, hotel, navigate, Id, searchParams, nights]);
+        if (onBook) { onBook(hotel, selectedRoomsList); return; }
+        navigate(detailUrl);  // ✅ same
+    }, [effectiveRoomsByPax, selectedRooms, selectedBoarding, onBook, hotel, navigate, detailUrl]);
 
     const handleViewDetail = useCallback(() => {
         if (onViewDetail) {
