@@ -1,6 +1,6 @@
 // src/components/HotelLightCard.jsx
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import {useState, useMemo, useCallback, useEffect, useRef} from 'react';
+import {useNavigate} from 'react-router-dom';
 import {
     Heart, MapPin, Star, Wifi, Car, Utensils, Waves, Wind, Coffee,
     Dumbbell, Sparkles, ChevronRight, CheckCircle2, AlertCircle,
@@ -42,7 +42,7 @@ const getFacilityIcon = (title = '') => {
 const getFreeChildInfo = (freeChild) => {
     if (!Array.isArray(freeChild) || freeChild.length === 0) return null;
     const maxAge = Math.max(...freeChild.map((fc) => fc.Age));
-    return { count: freeChild.length, maxAge };
+    return {count: freeChild.length, maxAge};
 };
 
 const buildBoardingFromRooms = (rooms) => {
@@ -50,24 +50,25 @@ const buildBoardingFromRooms = (rooms) => {
     const map = new Map();
     rooms.forEach(room => {
         if (!map.has(room.boardingCode))
-            map.set(room.boardingCode, { code: room.boardingCode, label: room.boardingName });
+            map.set(room.boardingCode, {code: room.boardingCode, label: room.boardingName});
     });
     return Array.from(map.values());
 };
 
 const buildDetailUrl = (hotelId, searchParams) => {
     const p = new URLSearchParams();
-    if (searchParams?.checkIn)  p.set('checkin',  searchParams.checkIn);
+    if (searchParams?.checkIn) p.set('checkin', searchParams.checkIn);
     if (searchParams?.checkOut) p.set('checkout', searchParams.checkOut);
     if (searchParams?.rooms?.length) {
         try {
             const normalized = searchParams.rooms.map(r => ({
-                adults:   r.adults ?? 2,
+                adults: r.adults ?? 2,
                 children: Array.isArray(r.children) ? r.children.length : (r.children ?? 0),
                 childAges: Array.isArray(r.children) ? r.children : (r.childAges ?? []),
             }));
             p.set('rooms', encodeURIComponent(JSON.stringify(normalized)));
-        } catch { /* skip */ }
+        } catch { /* skip */
+        }
     }
     const qs = p.toString();
     return `/hotels/${hotelId}${qs ? `?${qs}` : ''}`;
@@ -86,32 +87,32 @@ const initSelectionForBoarding = (paxData, boardingCode) => {
 function HotelLightCard({
                             hotel,
                             onFavoriteToggle,
-                            pricing       = null,
+                            pricing = null,
                             preloadedAvailability = null,
-                            onBook        = null,
-                            onViewDetail  = null,
+                            onBook = null,
+                            onViewDetail = null,
                             showBookButton = false,
-                            nights        = 1,
-                            searchParams  = null,
+                            nights = 1,
+                            searchParams = null,
                             initialIsFavorite = false,
                         }) {
     const navigate = useNavigate();
 
-    const cardRef       = useRef(null);
+    const cardRef = useRef(null);
     const showTarifsRef = useRef(false);
 
-    const [isFavorite,  setIsFavorite]  = useState(initialIsFavorite);
+    const [isFavorite, setIsFavorite] = useState(initialIsFavorite);
     const [imageLoaded, setImageLoaded] = useState(false);
-    const [showTarifs,  setShowTarifs]  = useState(false);
-    const [isLoading,   setIsLoading]   = useState(false);
+    const [showTarifs, setShowTarifs] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
 
-    const [allRooms,          setAllRooms]          = useState(() => preloadedAvailability ?? []);
+    const [allRooms, setAllRooms] = useState(() => preloadedAvailability ?? []);
     const [availableBoarding, setAvailableBoarding] = useState(() => buildBoardingFromRooms(preloadedAvailability));
-    const [selectedBoarding,  setSelectedBoarding]  = useState(() => preloadedAvailability?.[0]?.boardingCode ?? null);
-    const [noAvailability,    setNoAvailability]    = useState(() => preloadedAvailability !== null && preloadedAvailability.length === 0);
-    const [hasFetched,        setHasFetched]        = useState(() => preloadedAvailability !== null);
+    const [selectedBoarding, setSelectedBoarding] = useState(() => preloadedAvailability?.[0]?.boardingCode ?? null);
+    const [noAvailability, setNoAvailability] = useState(() => preloadedAvailability !== null && preloadedAvailability.length === 0);
+    const [hasFetched, setHasFetched] = useState(() => preloadedAvailability !== null);
 
-    const [roomsByPax,    setRoomsByPax]    = useState([]);
+    const [roomsByPax, setRoomsByPax] = useState([]);
     const [selectedRooms, setSelectedRooms] = useState({});
 
     useEffect(() => {
@@ -165,8 +166,8 @@ function HotelLightCard({
         if (requestedRooms.length === 0 || allRooms.length === 0) return [];
         return requestedRooms.map((room, idx) => ({
             paxIndex: idx,
-            adults:   room.adults ?? 2,
-            rooms:    allRooms,
+            adults: room.adults ?? 2,
+            rooms: allRooms,
         }));
     }, [roomsByPax, allRooms, searchParams?.rooms]);
 
@@ -175,7 +176,7 @@ function HotelLightCard({
         let total = 0;
         for (let i = 0; i < effectiveRoomsByPax.length; i++) {
             const roomId = selectedRooms[i];
-            const room   = effectiveRoomsByPax[i]?.rooms.find(
+            const room = effectiveRoomsByPax[i]?.rooms.find(
                 r => r.id === roomId && r.boardingCode === selectedBoarding
             );
             if (!room?.price) return null;
@@ -195,41 +196,31 @@ function HotelLightCard({
         setSelectedRooms({});
         try {
             const response = await apiClient.searchRoomAvailability({
-                hotelId:  Id,
-                checkIn:  searchParams.checkIn,
+                hotelId: Id,
+                checkIn: searchParams.checkIn,
                 checkOut: searchParams.checkOut,
-                rooms:    searchParams.rooms?.map(r => ({
-                    adults:    r.adults ?? 2,
-                    children:  Array.isArray(r.children) ? r.children.length : 0,
+                rooms: searchParams.rooms?.map(r => ({
+                    adults: r.adults ?? 2,
+                    children: Array.isArray(r.children) ? r.children.length : 0,
                     childAges: Array.isArray(r.children) ? r.children : [],
-                })) ?? [{ adults: 2, children: 0, childAges: [] }],
+                })) ?? [{adults: 2, children: 0, childAges: []}],
             });
 
-            if (!response.rooms?.length) { setNoAvailability(true); return; }
+            if (!response.rooms?.length) {
+                setNoAvailability(true);
+                return;
+            }
 
-            const boarding       = buildBoardingFromRooms(response.rooms);
+            const boarding = buildBoardingFromRooms(response.rooms);
             const firstBoardCode = boarding[0]?.code ?? null;
-            const paxData        = response.roomsByPax ?? [];
+            const paxData = response.roomsByPax ?? [];
 
             setAllRooms(response.rooms);
             setAvailableBoarding(boarding);
             setSelectedBoarding(firstBoardCode);
             setRoomsByPax(paxData);
             setHasFetched(true);
-
-            if (firstBoardCode) {
-                if (paxData.length > 0) {
-                    setSelectedRooms(initSelectionForBoarding(paxData, firstBoardCode));
-                } else {
-                    const requestedRooms = searchParams?.rooms ?? [];
-                    if (requestedRooms.length > 0 && response.rooms.length > 0) {
-                        const fakePaxData = requestedRooms.map((room, idx) => ({
-                            paxIndex: idx, adults: room.adults ?? 2, rooms: response.rooms,
-                        }));
-                        setSelectedRooms(initSelectionForBoarding(fakePaxData, firstBoardCode));
-                    }
-                }
-            }
+            setSelectedRooms({});
         } catch (err) {
             if (!err.isCancelled) {
                 if (showTarifsRef.current) toast.error('Erreur lors de la recherche de disponibilités.');
@@ -248,9 +239,12 @@ function HotelLightCard({
         if (!el) return;
         const observer = new IntersectionObserver(
             entries => {
-                if (entries[0].isIntersecting) { void fetchAvailability(); observer.unobserve(el); }
+                if (entries[0].isIntersecting) {
+                    void fetchAvailability();
+                    observer.unobserve(el);
+                }
             },
-            { threshold: 0.1, rootMargin: '200px' }
+            {threshold: 0.1, rootMargin: '200px'}
         );
         observer.observe(el);
         return () => observer.disconnect();
@@ -267,10 +261,8 @@ function HotelLightCard({
 
     const handleBoardingChange = useCallback((code) => {
         setSelectedBoarding(code);
-        if (effectiveRoomsByPax.length) {
-            setSelectedRooms(initSelectionForBoarding(effectiveRoomsByPax, code));
-        }
-    }, [effectiveRoomsByPax]);
+        setSelectedRooms({});
+    }, []);
 
     const handleFavoriteClick = useCallback((e) => {
         e.stopPropagation();
@@ -281,11 +273,14 @@ function HotelLightCard({
     }, [isFavorite, Id, onFavoriteToggle]);
 
     const handleBook = useCallback((room) => {
-        if (onBook) { onBook(hotel, room); return; }
+        if (onBook) {
+            onBook(hotel, room);
+            return;
+        }
         navigate(
             `/hotels-search?hotelId=${Id}&checkIn=${searchParams?.checkIn}&checkOut=${searchParams?.checkOut}` +
             `&rooms=${encodeURIComponent(JSON.stringify(searchParams?.rooms ?? []))}`,
-            { state: { hotel, selectedRoom: room, searchParams, nights } }
+            {state: {hotel, selectedRoom: room, searchParams, nights}}
         );
     }, [onBook, hotel, navigate, Id, searchParams, nights]);
 
@@ -295,16 +290,22 @@ function HotelLightCard({
                 pax.rooms.find(r => r.id === selectedRooms[idx] && r.boardingCode === selectedBoarding) ?? null
             )
             .filter(Boolean);
-        if (onBook) { onBook(hotel, selectedRoomsList); return; }
+        if (onBook) {
+            onBook(hotel, selectedRoomsList);
+            return;
+        }
         navigate(
             `/hotels-search?hotelId=${Id}&checkIn=${searchParams?.checkIn}&checkOut=${searchParams?.checkOut}` +
             `&rooms=${encodeURIComponent(JSON.stringify(searchParams?.rooms ?? []))}`,
-            { state: { hotel, selectedRooms: selectedRoomsList, searchParams, nights } }
+            {state: {hotel, selectedRooms: selectedRoomsList, searchParams, nights}}
         );
     }, [effectiveRoomsByPax, selectedRooms, selectedBoarding, onBook, hotel, navigate, Id, searchParams, nights]);
 
     const handleViewDetail = useCallback(() => {
-        if (onViewDetail) { onViewDetail(Id); return; }
+        if (onViewDetail) {
+            onViewDetail(Id);
+            return;
+        }
         navigate(detailUrl);
     }, [onViewDetail, navigate, Id, detailUrl]);
 
@@ -320,7 +321,7 @@ function HotelLightCard({
                 {/* ── Image ── */}
                 <div className="relative sm:w-80 lg:w-[360px] shrink-0 overflow-hidden bg-gray-200">
                     {!imageLoaded && (
-                        <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 animate-pulse" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 animate-pulse"/>
                     )}
                     <img
                         src={hotelImage}
@@ -335,13 +336,15 @@ function HotelLightCard({
                     />
 
                     {/* Gradient overlay for legibility */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent pointer-events-none" />
+                    <div
+                        className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent pointer-events-none"/>
 
                     {/* Stars badge — bottom-left */}
                     {stars.length > 0 && (
-                        <div className="absolute bottom-3 left-3 flex items-center gap-0.5 bg-black/40 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-full shadow-sm">
+                        <div
+                            className="absolute bottom-3 left-3 flex items-center gap-0.5 bg-black/40 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-full shadow-sm">
                             {stars.map((_, i) => (
-                                <Star key={i} size={11} className="fill-amber-400 text-amber-400 drop-shadow" />
+                                <Star key={i} size={11} className="fill-amber-400 text-amber-400 drop-shadow"/>
                             ))}
                         </div>
                     )}
@@ -356,16 +359,20 @@ function HotelLightCard({
                         }`}
                         aria-label="Favoris"
                     >
-                        <Heart size={15} className={isFavorite ? 'fill-white text-white' : 'text-gray-500'} />
+                        <Heart size={15} className={isFavorite ? 'fill-white text-white' : 'text-gray-500'}/>
                     </button>
 
                     {/* Price overlay — bottom-right */}
                     {pricing?.minPrice && (
-                        <div className="absolute bottom-3 right-3 bg-gradient-to-br from-sky-500 to-sky-700 text-white text-xs font-bold px-3 py-2 rounded-2xl shadow-lg shadow-sky-500/30 border border-sky-400/30">
-                            <div className="text-[10px] font-normal opacity-80 tracking-wide uppercase">À partir de</div>
-                            <div className="text-sm font-extrabold">{formatPrice(totalPrice ?? pricing.minPrice)} <span className="font-normal opacity-80 text-[11px]">DZD</span></div>
+                        <div
+                            className="absolute bottom-3 right-3 bg-gradient-to-br from-orange-400 to-orange-600 text-white text-xs font-bold px-3 py-2 rounded-2xl shadow-lg shadow-sky-500/30 border border-sky-400/30">
+                            <div className="text-[10px] font-normal opacity-80 tracking-wide uppercase">À partir de
+                            </div>
+                            <div className="text-sm font-extrabold">{formatPrice(totalPrice ?? pricing.minPrice)} <span
+                                className="font-normal opacity-80 text-[11px]">DZD</span></div>
                             {nights > 1 && (
-                                <div className="text-[10px] font-normal opacity-75">{formatPrice(pricing.minPrice)} / nuit</div>
+                                <div className="text-[10px] font-normal opacity-75">{formatPrice(pricing.minPrice)} /
+                                    nuit</div>
                             )}
                         </div>
                     )}
@@ -375,25 +382,26 @@ function HotelLightCard({
                 <div className="flex-1 p-5 sm:p-6 flex flex-col gap-2.5 min-w-0">
 
                     {/* Name + FreeChild */}
-                    <div className="flex items-start gap-2 flex-wrap">
-                        <h3 className="text-[17px] font-extrabold text-gray-900 leading-tight tracking-tight">{Name}</h3>
+                    <div className="flex items-start gap-2 lg:gap-4 flex-wrap">
+                        <h3 className="text-base lg:text-xl font-extrabold text-gray-600 leading-tight tracking-tight">{Name}</h3>
                         {freeChildInfo && (
-                            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 shadow-sm">
-                <Baby size={11} />
+                            <span
+                                className="inline-flex items-center gap-1 bg-emerald-500 text-xs text-white border border-emerald-200 font-bold px-2.5 py-1 rounded-full shrink-0 shadow-sm">
+                                <Baby size={18}/>
                                 {freeChildInfo.count} enfant{freeChildInfo.count > 1 ? 's' : ''} gratuit{freeChildInfo.count > 1 ? 's' : ''} jusqu'à {freeChildInfo.maxAge} ans
-              </span>
+                          </span>
                         )}
                     </div>
 
                     {/* City */}
                     <p className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
-                        <MapPin size={13} className="text-sky-500 shrink-0" />
+                        <MapPin size={13} className="text-sky-500 shrink-0"/>
                         {City?.Name}{City?.Country?.Name ? `, ${City.Country.Name}` : ''}
                     </p>
 
                     {/* Description */}
                     {shortDesc && (
-                        <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">{shortDesc}</p>
+                        <p className="text-xs lg:text-sm text-gray-500 line-clamp-2 leading-relaxed">{shortDesc}</p>
                     )}
 
                     {/* Facilities */}
@@ -406,7 +414,7 @@ function HotelLightCard({
                                         key={f.Title ?? i}
                                         className="inline-flex items-center gap-1 bg-sky-50 border border-sky-100 text-sky-700 text-[11px] font-medium px-2.5 py-1 rounded-full"
                                     >
-                    <Icon size={10} className="text-sky-500 shrink-0" />
+                    <Icon size={10} className="text-sky-500 shrink-0"/>
                                         {f.Title}
                   </span>
                                 );
@@ -417,33 +425,38 @@ function HotelLightCard({
                     {/* Nights + guests */}
                     {searchParams && (
                         <div className="flex items-center gap-3">
-              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 text-[11px] font-medium px-2.5 py-1 rounded-full">
+              <span
+                  className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 text-[11px] font-medium px-2.5 py-1 rounded-full">
                 🌙 {nights} nuit{nights > 1 ? 's' : ''}
               </span>
-                            <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 text-[11px] font-medium px-2.5 py-1 rounded-full">
+                            <span
+                                className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 text-[11px] font-medium px-2.5 py-1 rounded-full">
                 👤 {searchParams.rooms?.reduce((s, r) => s + (r.adults || 0), 0)} adulte(s)
               </span>
                             {searchParams.rooms?.length > 1 && (
-                                <span className="inline-flex items-center gap-1 bg-sky-100 text-sky-700 text-[11px] font-medium px-2.5 py-1 rounded-full">
+                                <span
+                                    className="inline-flex items-center gap-1 bg-sky-100 text-sky-700 text-[11px] font-medium px-2.5 py-1 rounded-full">
                   🛏 {searchParams.rooms.length} chambres
                 </span>
                             )}
                         </div>
                     )}
 
-                    <div className="flex-1" />
+                    <div className="flex-1"/>
 
                     {/* Price + action buttons */}
                     <div className="flex items-end justify-between gap-3 mt-1 flex-wrap pt-2 border-t border-gray-100">
                         {pricing?.minPrice ? (
                             <div>
-                                <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-0.5">À partir de</p>
+                                <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-0.5">À partir
+                                    de</p>
                                 <p className="text-xl font-extrabold text-sky-700 leading-none">
                                     {formatPrice(totalPrice ?? pricing.minPrice)}
                                     <span className="text-sm font-semibold text-gray-400 ml-1">DZD</span>
                                 </p>
                                 {nights > 1
-                                    ? <p className="text-[11px] text-gray-400 mt-0.5">{nights} nuits · {formatPrice(pricing.minPrice)} DZD / nuit</p>
+                                    ? <p className="text-[11px] text-gray-400 mt-0.5">{nights} nuits
+                                        · {formatPrice(pricing.minPrice)} DZD / nuit</p>
                                     : <p className="text-[11px] text-gray-400 mt-0.5">/ nuit · par chambre</p>
                                 }
                             </div>
@@ -470,7 +483,7 @@ function HotelLightCard({
                                 }`}
                             >
                                 Tarifs & Chambres
-                                {showTarifs ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                                {showTarifs ? <ChevronUp size={13}/> : <ChevronDown size={13}/>}
                             </button>
                         </div>
                     </div>
@@ -479,12 +492,13 @@ function HotelLightCard({
 
             {/* ── Tarifs panel ── */}
             {showTarifs && (
-                <div className="border-t-2 border-sky-100 bg-gradient-to-b from-slate-50 to-sky-50/40 px-5 sm:px-6 py-5">
+                <div
+                    className="border-t-2 border-sky-100 bg-gradient-to-b from-slate-50 to-sky-50/40 px-5 sm:px-6 py-5">
 
                     {/* Panel header */}
                     <div className="flex items-center justify-between mb-5">
                         <div className="flex items-center gap-2">
-                            <div className="w-1 h-5 bg-gradient-to-b from-sky-500 to-sky-700 rounded-full" />
+                            <div className="w-1 h-5 bg-gradient-to-b from-sky-500 to-sky-700 rounded-full"/>
                             <span className="text-sm font-extrabold text-gray-800 tracking-tight">Choisissez votre formule</span>
                         </div>
                         {hasFetched && !isLoading && (
@@ -501,7 +515,7 @@ function HotelLightCard({
                     {isLoading && (
                         <div className="flex flex-col items-center justify-center gap-3 py-10">
                             <div className="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center">
-                                <Loader2 size={20} className="animate-spin text-sky-600" />
+                                <Loader2 size={20} className="animate-spin text-sky-600"/>
                             </div>
                             <span className="text-sm text-gray-500 font-medium">Recherche des disponibilités...</span>
                         </div>
@@ -510,12 +524,15 @@ function HotelLightCard({
                     {/* No availability */}
                     {!isLoading && noAvailability && (
                         <div className="flex flex-col items-center gap-3 py-8 text-center">
-                            <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center border border-amber-200">
-                                <AlertCircle size={22} className="text-amber-500" />
+                            <div
+                                className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center border border-amber-200">
+                                <AlertCircle size={22} className="text-amber-500"/>
                             </div>
                             <p className="text-sm font-bold text-gray-700">Aucune disponibilité pour ces dates</p>
-                            <p className="text-xs text-gray-400 max-w-xs">Veuillez modifier vos dates ou consulter la fiche complète.</p>
-                            <button onClick={handleViewDetail} className="text-xs text-sky-600 underline underline-offset-2 font-semibold hover:text-sky-800 transition-colors">
+                            <p className="text-xs text-gray-400 max-w-xs">Veuillez modifier vos dates ou consulter la
+                                fiche complète.</p>
+                            <button onClick={handleViewDetail}
+                                    className="text-xs text-sky-600 underline underline-offset-2 font-semibold hover:text-sky-800 transition-colors">
                                 Voir la fiche hôtel →
                             </button>
                         </div>
@@ -525,7 +542,8 @@ function HotelLightCard({
                     {!isLoading && !noAvailability && availableBoarding.length > 0 && (
                         <>
                             {/* ── Boarding tabs ── */}
-                            <div className="flex gap-2 flex-wrap mb-5 p-1 bg-white rounded-2xl border border-gray-100 shadow-sm w-fit max-w-full">
+                            <div
+                                className="flex gap-2 flex-wrap mb-5 p-1 bg-white rounded-2xl border border-gray-100 shadow-sm w-fit max-w-full">
                                 {availableBoarding.map(board => (
                                     <button
                                         key={board.code}
@@ -545,7 +563,7 @@ function HotelLightCard({
                             {effectiveRoomsByPax.length > 0 ? (
                                 <div className="flex flex-col gap-3">
                                     {effectiveRoomsByPax.map((pax, idx) => {
-                                        const paxRooms    = pax.rooms.filter(r => r.boardingCode === selectedBoarding);
+                                        const paxRooms = pax.rooms.filter(r => r.boardingCode === selectedBoarding);
                                         const selectedRoom = paxRooms.find(r => r.id === selectedRooms[idx]) ?? paxRooms[0];
                                         return (
                                             <div
@@ -553,12 +571,14 @@ function HotelLightCard({
                                                 className="relative bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden"
                                             >
                                                 {/* Left accent bar */}
-                                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-sky-400 to-sky-600 rounded-l-2xl" />
+                                                <div
+                                                    className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-sky-400 to-sky-600 rounded-l-2xl"/>
 
                                                 <div className="p-4 pl-5">
                                                     {/* Slot header */}
                                                     <div className="flex items-center gap-2 mb-3">
-                            <span className="w-7 h-7 bg-gradient-to-br from-sky-400 to-sky-600 text-white rounded-full flex items-center justify-center text-xs font-extrabold shadow-sm shadow-sky-200 shrink-0">
+                            <span
+                                className="w-7 h-7 bg-gradient-to-br from-sky-400 to-sky-600 text-white rounded-full flex items-center justify-center text-xs font-extrabold shadow-sm shadow-sky-200 shrink-0">
                               {idx + 1}
                             </span>
                                                         <span className="text-sm font-bold text-gray-800">
@@ -579,33 +599,46 @@ function HotelLightCard({
                                                             {/* Dropdown */}
                                                             <div className="relative">
                                                                 <select
-                                                                    value={selectedRooms[idx] ?? paxRooms[0]?.id ?? ''}
+                                                                    value={selectedRooms[idx] ?? ''}
                                                                     onChange={(e) =>
-                                                                        setSelectedRooms(prev => ({ ...prev, [idx]: e.target.value }))
+                                                                        setSelectedRooms(prev => ({
+                                                                            ...prev,
+                                                                            [idx]: e.target.value
+                                                                        }))
                                                                     }
                                                                     className="w-full appearance-none border-2 border-gray-100 focus:border-sky-400 rounded-xl px-4 py-2.5 pr-10 text-sm text-gray-800 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-100 cursor-pointer font-medium transition-all duration-150"
                                                                 >
+                                                                    {/* ✅ NEW — placeholder option */}
+                                                                    <option value="" disabled>
+                                                                        — Sélectionnez le type de votre chambre —
+                                                                    </option>
                                                                     {paxRooms.map(room => (
                                                                         <option key={room.id} value={room.id}>
                                                                             {room.name} — {formatPrice(room.price * nights)} DZD
                                                                         </option>
                                                                     ))}
                                                                 </select>
+
                                                                 {/* Custom chevron */}
-                                                                <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                                                <ChevronDown size={15}
+                                                                             className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
                                                             </div>
 
                                                             {/* Price summary */}
                                                             {selectedRoom && (
-                                                                <div className="mt-2.5 flex items-center justify-between bg-sky-50 rounded-xl px-3 py-2">
-                                                                    <span className="text-[11px] text-sky-600 font-semibold">{selectedRoom.boardingName}</span>
+                                                                <div
+                                                                    className="mt-2.5 flex items-center justify-between bg-sky-50 rounded-xl px-3 py-2">
+                                                                    <span
+                                                                        className="text-[11px] text-sky-600 font-semibold">{selectedRoom.boardingName}</span>
                                                                     <div className="flex items-baseline gap-1.5">
                                     <span className="text-sm font-extrabold text-sky-700">
                                       {formatPrice(selectedRoom.price * nights)}
                                     </span>
-                                                                        <span className="text-[11px] font-semibold text-sky-500">DZD</span>
+                                                                        <span
+                                                                            className="text-[11px] font-semibold text-sky-500">DZD</span>
                                                                         {nights > 1 && (
-                                                                            <span className="text-[10px] text-gray-400 ml-1">
+                                                                            <span
+                                                                                className="text-[10px] text-gray-400 ml-1">
                                         · {formatPrice(selectedRoom.price)} / nuit
                                       </span>
                                                                         )}
@@ -620,10 +653,12 @@ function HotelLightCard({
                                     })}
 
                                     {/* ── Total + single Réserver ── */}
-                                    <div className="mt-1 bg-gradient-to-r from-sky-600 via-sky-700 to-sky-800 rounded-2xl p-4 shadow-lg shadow-sky-200/50 flex items-center justify-between gap-4">
+                                    <div
+                                        className="mt-1 bg-gradient-to-r from-sky-600 via-sky-700 to-sky-800 rounded-2xl p-4 shadow-lg shadow-sky-200/50 flex items-center justify-between gap-4">
                                         <div>
                                             <p className="text-xs text-sky-200 mb-1 font-medium tracking-wide">
-                                                Total · {effectiveRoomsByPax.length} chambre{effectiveRoomsByPax.length > 1 ? 's' : ''} · {nights} nuit{nights > 1 ? 's' : ''}
+                                                Total
+                                                · {effectiveRoomsByPax.length} chambre{effectiveRoomsByPax.length > 1 ? 's' : ''} · {nights} nuit{nights > 1 ? 's' : ''}
                                             </p>
                                             {computedTotalPrice != null ? (
                                                 <div className="flex items-baseline gap-1.5">
@@ -633,7 +668,8 @@ function HotelLightCard({
                                                     <span className="text-sm font-semibold text-sky-200">DZD</span>
                                                 </div>
                                             ) : (
-                                                <p className="text-xs text-sky-300 italic">Sélectionnez toutes les chambres</p>
+                                                <p className="text-xs text-sky-300 italic">Sélectionnez toutes les
+                                                    chambres</p>
                                             )}
                                         </div>
 
@@ -644,7 +680,7 @@ function HotelLightCard({
                                                 className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-400 to-orange-500 hover:from-orange-500 hover:to-orange-600 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed text-white text-sm font-extrabold rounded-2xl transition-all duration-200 shadow-lg shadow-orange-400/40 active:scale-95 shrink-0"
                                             >
                                                 Réserver
-                                                <ChevronRight size={16} className="shrink-0" />
+                                                <ChevronRight size={16} className="shrink-0"/>
                                             </button>
                                         )}
                                     </div>
@@ -652,16 +688,19 @@ function HotelLightCard({
 
                             ) : filteredRooms.length === 0 ? (
                                 <div className="text-center py-6">
-                                    <p className="text-sm text-gray-400 font-medium">Aucune chambre disponible pour cette formule.</p>
+                                    <p className="text-sm text-gray-400 font-medium">Aucune chambre disponible pour
+                                        cette formule.</p>
                                 </div>
 
                             ) : (
                                 /* Flat list fallback */
-                                <div className="flex flex-col divide-y divide-gray-100 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                                <div
+                                    className="flex flex-col divide-y divide-gray-100 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                                     {filteredRooms.map(room => {
                                         const roomTotal = room.price != null && nights >= 1 ? room.price * nights : room.price;
                                         return (
-                                            <div key={room.id} className="flex items-center justify-between px-4 py-3 hover:bg-sky-50/50 transition-colors group/row">
+                                            <div key={room.id}
+                                                 className="flex items-center justify-between px-4 py-3 hover:bg-sky-50/50 transition-colors group/row">
                                                 <div>
                                                     <p className="text-sm font-semibold text-gray-800 group-hover/row:text-sky-700 transition-colors">{room.name}</p>
                                                     <p className="text-xs text-gray-400 mt-0.5">{room.boardingName}</p>
@@ -669,9 +708,12 @@ function HotelLightCard({
                                                 <div className="flex items-center gap-3 shrink-0">
                                                     <div className="text-right">
                                                         <p className="text-sm font-extrabold text-sky-700">
-                                                            {formatPrice(roomTotal)} <span className="text-[11px] font-normal text-gray-400">{room.currency}</span>
+                                                            {formatPrice(roomTotal)} <span
+                                                            className="text-[11px] font-normal text-gray-400">{room.currency}</span>
                                                         </p>
-                                                        {nights > 1 && <p className="text-[11px] text-gray-400">{formatPrice(room.price)} / nuit</p>}
+                                                        {nights > 1 &&
+                                                            <p className="text-[11px] text-gray-400">{formatPrice(room.price)} /
+                                                                nuit</p>}
                                                     </div>
                                                     {showBookButton && (
                                                         <button
@@ -700,7 +742,7 @@ function HotelLightCard({
                                     onClick={handleViewDetail}
                                     className="text-xs text-sky-600 hover:text-sky-800 font-bold flex items-center gap-1 transition-all hover:gap-2"
                                 >
-                                    Fiche complète <ChevronRight size={12} />
+                                    Fiche complète <ChevronRight size={12}/>
                                 </button>
                             </div>
                         </>
