@@ -297,7 +297,7 @@ function HotelDetails() {
                 </div>
             )}
 
-            <div className="w-[90%] mx-auto py-6">
+            <div className="w-[95%] mx-auto py-2">
 
                 {/* ── Back button ── */}
                 <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sky-600 hover:text-sky-700 font-semibold mb-5 transition-colors group">
@@ -307,31 +307,62 @@ function HotelDetails() {
 
                 {/* ── Hero ── */}
                 <div className="relative h-[360px] sm:h-[480px] rounded-2xl overflow-hidden mb-6 shadow-lg">
-                    <img src={allImages[mainImageIndex]?.Url ?? "https://loremflickr.com/1200/500/hotel,luxury?lock=1"} alt={allImages[mainImageIndex]?.Alt ?? Name} className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                    <div className="absolute bottom-[4.5rem] left-6 flex items-center gap-3">
-                        {Category?.Star && (
-                            <div className="flex items-center gap-1.5 bg-orange-500 px-4 py-2 rounded-full shadow-lg shadow-orange-900/30">
-                                {Array(Category.Star).fill(null).map((_, i) => <Star key={i} size={15} className="fill-white text-white" />)}
-                            </div>
-                        )}
-                        {Type && <span className="text-sm font-bold px-4 py-2 bg-sky-500 text-white rounded-full shadow-lg shadow-sky-900/30 tracking-wide">{Type}</span>}
-                    </div>
-                    <div className="absolute bottom-6 left-6 right-14">
-                        <h1 className="text-3xl sm:text-5xl font-extrabold text-white drop-shadow-xl leading-tight tracking-tight">{Name}</h1>
-                        <p className="flex items-center gap-2 text-white/80 text-base font-semibold mt-2">
+                    <img
+                        src={allImages[mainImageIndex]?.Url ?? "https://loremflickr.com/1200/500/hotel,luxury?lock=1"}
+                        alt={allImages[mainImageIndex]?.Alt ?? Name}
+                        className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
+
+                    {/* ── Single unified bottom container ── */}
+                    <div className="absolute bottom-6 left-6 right-14 flex flex-col gap-3">
+
+                        {/* Row 1 — Badges */}
+                        <div className="flex items-center gap-3 flex-wrap">
+                            {Category?.Star && (
+                                <div className="flex items-center gap-1.5 bg-orange-500 px-4 py-2 rounded-full shadow-lg shadow-orange-900/40">
+                                    {Array(Category.Star).fill(null).map((_, i) => (
+                                        <Star key={i} size={15} className="fill-white text-white" />
+                                    ))}
+                                </div>
+                            )}
+                            {Type && (
+                                <span className="text-sm font-bold px-4 py-2 bg-sky-500 text-white rounded-full shadow-lg shadow-sky-900/30 tracking-wide">
+                    {Type}
+                </span>
+                            )}
+                        </div>
+
+                        {/* Row 2 — Hotel Name */}
+                        <h1 className="text-3xl sm:text-5xl font-extrabold text-white drop-shadow-xl leading-tight tracking-tight">
+                            {Name}
+                        </h1>
+
+                        {/* Row 3 — City */}
+                        <p className="flex items-center gap-2 text-white/80 text-base font-semibold">
                             <MapPin size={16} className="text-white/70 shrink-0" />
                             {City?.Name}{City?.Country?.Name ? `, ${City.Country.Name}` : ""}
                         </p>
                     </div>
+
+                    {/* Dot navigation */}
                     {allImages.length > 1 && (
                         <div className="absolute bottom-6 right-6 flex flex-col gap-1.5 items-center">
                             {allImages.slice(0, 6).map((_, i) => (
-                                <button key={i} onClick={() => setMainImageIndex(i)} className={`rounded-full transition-all ${mainImageIndex === i ? "bg-white w-2.5 h-8" : "bg-white/50 hover:bg-white/80 w-2.5 h-2.5"}`} />
+                                <button
+                                    key={i}
+                                    onClick={() => setMainImageIndex(i)}
+                                    className={`rounded-full transition-all ${
+                                        mainImageIndex === i
+                                            ? "bg-white w-2.5 h-8"
+                                            : "bg-white/50 hover:bg-white/80 w-2.5 h-2.5"
+                                    }`}
+                                />
                             ))}
                         </div>
                     )}
                 </div>
+
 
                 {/* ── Quick Info Cards ── */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
