@@ -5,7 +5,7 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
     MapPin, Star, ChevronLeft, ChevronDown, X, Tag, Users, Eye, Sparkles,
     Navigation, Mountain, Home, CheckCircle2, Calendar, AlertCircle,
-    LayoutGrid, Phone, Mail, Globe, Images, Info, Building2,
+    LayoutGrid, Images, Info, Building2,
     Wifi, Car, Utensils, Waves, Wind, Coffee, Dumbbell, ExternalLink,
 } from "lucide-react";
 import toast from "react-hot-toast";
