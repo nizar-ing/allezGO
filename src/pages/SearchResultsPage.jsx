@@ -149,9 +149,10 @@ function SearchResultsPage() {
 
             sr.Price?.Boarding?.forEach((boarding) => {
                 boarding.Pax?.forEach((pax) => {
+                    const adultCount = pax.Adult ?? 2; // ✅ FIX 1: capture adult count from this Pax bucket
                     pax.Rooms?.forEach((room) => {
                         const price   = room.Price ? parseFloat(room.Price) : null;
-                        const roomKey = `${boarding.Code}__${room.Code ?? room.Id ?? ""}`;
+                        const roomKey = `${boarding.Code}__${adultCount}__${room.Code ?? room.Id ?? ""}`; // ✅ FIX 2: include adultCount in key — prevents Pax[0] and Pax[1] room collisions
                         if (price && !isNaN(price)) allPrices.push(price);
                         if (!roomMap.has(roomKey)) {
                             roomMap.set(roomKey, {
@@ -161,6 +162,7 @@ function SearchResultsPage() {
                                 boardingName: boarding.Name,
                                 price:        price && !isNaN(price) ? price : null,
                                 currency:     sr.Currency,
+                                adults:       adultCount, // ✅ FIX 3: store adult count so HotelLightCard.effectiveRoomsByPax matches each slot correctly
                             });
                         }
                     });

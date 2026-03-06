@@ -190,13 +190,13 @@ function BookingHotels() {
                         disabled={isPending}
                         className="w-full lg:w-auto bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition-colors font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-            <span className="flex justify-center items-center gap-2 px-4">
-              {isPending
-                  ? <Loader2 size={20} className="animate-spin" />
-                  : <Search size={20} />
-              }
-                {isPending ? 'Recherche...' : 'Rechercher'}
-            </span>
+                        <span className="flex justify-center items-center gap-2 px-4">
+                          {isPending
+                              ? <Loader2 size={20} className="animate-spin" />
+                              : <Search size={20} />
+                          }
+                            {isPending ? 'Recherche...' : 'Rechercher'}
+                        </span>
                     </Button>
 
                 </div>
