@@ -157,12 +157,36 @@ function HotelLightCard({
         if (roomsByPax.length > 0) return roomsByPax;
         const requestedRooms = searchParams?.rooms ?? [];
         if (requestedRooms.length === 0 || allRooms.length === 0) return [];
-        return requestedRooms.map((room, idx) => ({
-            paxIndex: idx,
-            adults: room.adults ?? 2,
-            rooms: allRooms,
-        }));
+
+        // Build adultCount → rooms lookup (mirrors ApiClient._processRoomsByPax)
+        const adultCountToRooms = new Map();
+        allRooms.forEach(room => {
+            const key = room.adults ?? 2;
+            if (!adultCountToRooms.has(key)) adultCountToRooms.set(key, []);
+            adultCountToRooms.get(key).push(room);
+        });
+        const availableCounts = Array.from(adultCountToRooms.keys()).sort((a, b) => a - b);
+
+        return requestedRooms.map((room, idx) => {
+            const requestedAdults = room.adults ?? 2;
+            // Exact match first, then closest-count fallback
+            let matchedRooms = adultCountToRooms.get(requestedAdults) ?? [];
+            if (matchedRooms.length === 0 && availableCounts.length > 0) {
+                const closest = availableCounts.reduce((prev, curr) =>
+                    Math.abs(curr - requestedAdults) < Math.abs(prev - requestedAdults) ? curr : prev
+                );
+                matchedRooms = adultCountToRooms.get(closest) ?? [];
+            }
+            return {
+                paxIndex:  idx,
+                adults:    requestedAdults,
+                children:  room.children  ?? 0,
+                childAges: room.childAges ?? [],
+                rooms:     [...matchedRooms].sort((a, b) => a.price - b.price),
+            };
+        });
     }, [roomsByPax, allRooms, searchParams?.rooms]);
+
 
     const computedTotalPrice = useMemo(() => {
         if (!effectiveRoomsByPax.length || !selectedBoarding) return null;
