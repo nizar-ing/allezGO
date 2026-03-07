@@ -18,7 +18,7 @@ const COUNTRY_BANNERS = {
 };
 const FALLBACK_BANNER = "/images/tunisie_hotels.jpeg";
 
-const HOTELS_PER_PAGE = 10;
+const HOTELS_PER_PAGE = 15;
 
 function SearchResultsPage() {
     const [searchParams] = useSearchParams();
@@ -28,7 +28,7 @@ function SearchResultsPage() {
     const selectionType = searchParams.get("selectionType");
     const cityId        = searchParams.get("cityId");
     const cityName      = searchParams.get("cityName");
-    const countryName   = searchParams.get("countryName");   // ← already passed by BookingHotels
+    const countryName   = searchParams.get("countryName");
     const hotelId       = searchParams.get("hotelId");
     const hotelName     = searchParams.get("hotelName");
     const checkIn       = searchParams.get("checkIn");
@@ -122,8 +122,8 @@ function SearchResultsPage() {
                 checkOut,
                 hotels: hotelIds,
                 rooms:  rooms.map((room) => ({
-                    adult:    room.adults,
-                    child:    Array.isArray(room.children) ? room.children.length : (room.children ?? 0),
+                    adult:     room.adults,
+                    child:     Array.isArray(room.children) ? room.children.length : (room.children ?? 0),
                     childAges: Array.isArray(room.children) && room.children.length > 0
                         ? room.children : undefined,
                 })),
@@ -149,31 +149,51 @@ function SearchResultsPage() {
 
             sr.Price?.Boarding?.forEach((boarding) => {
                 boarding.Pax?.forEach((pax) => {
-                    const adultCount = pax.Adult ?? 2; // ✅ FIX 1: capture adult count from this Pax bucket
+                    const adultCount = pax.Adult ?? 2;
                     pax.Rooms?.forEach((room) => {
-                        const price   = room.Price ? parseFloat(room.Price) : null;
-                        const roomKey = `${boarding.Code}__${adultCount}__${room.Code ?? room.Id ?? ""}`; // ✅ FIX 2: include adultCount in key — prevents Pax[0] and Pax[1] room collisions
+                        const price     = room.Price     ? parseFloat(room.Price)     : null;
+                        const basePrice = room.BasePrice ? parseFloat(room.BasePrice) : null; // ← NEW
+                        const roomKey   = `${boarding.Code}__${adultCount}__${room.Code ?? room.Id ?? ""}`;
+
                         if (price && !isNaN(price)) allPrices.push(price);
+
                         if (!roomMap.has(roomKey)) {
                             roomMap.set(roomKey, {
-                                id:           room.Id ?? roomKey,
-                                name:         room.Name ?? room.Code ?? "Chambre",
-                                boardingCode: boarding.Code,
-                                boardingName: boarding.Name,
-                                price:        price && !isNaN(price) ? price : null,
-                                currency:     sr.Currency,
-                                adults:       adultCount, // ✅ FIX 3: store adult count so HotelLightCard.effectiveRoomsByPax matches each slot correctly
+                                id:              room.Id   ?? roomKey,
+                                name:            room.Name ?? room.Code ?? "Chambre",
+                                boardingCode:    boarding.Code,
+                                boardingName:    boarding.Name,
+                                price:           price     && !isNaN(price)     ? price     : null,
+                                basePrice:       basePrice && !isNaN(basePrice) ? basePrice : null, // ← NEW
+                                stopReservation: room.StopReservation ?? false,                     // ← NEW
+                                onRequest:       room.OnRequest       ?? false,                     // ← NEW
+                                currency:        sr.Currency,
+                                adults:          adultCount,
                             });
                         }
                     });
                 });
             });
 
-            const minPrice      = allPrices.length > 0 ? Math.min(...allPrices) : null;
-            const maxPrice      = allPrices.length > 0 ? Math.max(...allPrices) : null;
+            const minPrice       = allPrices.length > 0 ? Math.min(...allPrices) : null;
+            const maxPrice       = allPrices.length > 0 ? Math.max(...allPrices) : null;
             const preloadedRooms = Array.from(roomMap.values());
-            const pricing        = minPrice
-                ? { minPrice, maxPrice, currency: sr.Currency, available: true, token: sr.Token }
+
+            // ← NEW — best discount across all rooms for the promo badge
+            const discounts = preloadedRooms
+                .filter(r => r.basePrice && r.price && r.basePrice > r.price)
+                .map(r => Math.round(((r.basePrice - r.price) / r.basePrice) * 100));
+            const maxDiscount = discounts.length > 0 ? Math.max(...discounts) : null;
+
+            const pricing = minPrice
+                ? {
+                    minPrice,
+                    maxPrice,
+                    currency:        sr.Currency,
+                    available:       true,
+                    token:           sr.Token,
+                    discountPercent: maxDiscount, // ← NEW
+                }
                 : null;
 
             return {
@@ -259,7 +279,7 @@ function SearchResultsPage() {
 
     // ── Pagination (infinite scroll) ───────────────────────────────────────────
     const {
-        data:          paginatedData,
+        data:              paginatedData,
         fetchNextPage,
         hasNextPage,
         isFetchingNextPage,
@@ -310,11 +330,11 @@ function SearchResultsPage() {
     }, [checkIn, checkOut, rooms]);
 
     const handleViewHotelDetail = useCallback((id) => {
-        navigate(buildHotelUrl(id));  // ✅ URL params carried
+        navigate(buildHotelUrl(id));
     }, [navigate, buildHotelUrl]);
 
     const handleBookHotel = useCallback((hotel) => {
-        navigate(buildHotelUrl(hotel.Id));  // ✅ same
+        navigate(buildHotelUrl(hotel.Id));
     }, [navigate, buildHotelUrl]);
 
     // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -360,7 +380,7 @@ function SearchResultsPage() {
     return (
         <div className="min-h-screen w-full bg-gradient-to-br from-sky-50 via-blue-50 to-sky-100">
 
-            {/* ── Hero Banner ────────────────────────────────────────────────────── */}
+            {/* ── Hero Banner ─────────────────────────────────────────────────────── */}
             <div className="relative h-48 sm:h-56 md:h-64 lg:h-80 overflow-hidden mx-2 sm:mx-4 lg:mx-8 mt-2 sm:mt-4 rounded-xl sm:rounded-2xl">
                 <img
                     src={getBannerImage()}
@@ -384,7 +404,7 @@ function SearchResultsPage() {
                 </div>
             </div>
 
-            {/* ── Search Summary Banner ──────────────────────────────────────────── */}
+            {/* ── Search Summary Banner ────────────────────────────────────────────── */}
             <div className="bg-white shadow-md border-b border-gray-200 mx-2 sm:mx-4 lg:mx-8 mt-2 sm:mt-4 rounded-xl sm:rounded-2xl overflow-hidden">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
                     <Link
@@ -459,7 +479,7 @@ function SearchResultsPage() {
                 </div>
             </div>
 
-            {/* ── Main Content ───────────────────────────────────────────────────── */}
+            {/* ── Main Content ─────────────────────────────────────────────────────── */}
             <div className="w-full max-w-[1800px] mx-auto px-2 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 lg:py-8">
 
                 {/* Top Bar */}
@@ -475,8 +495,8 @@ function SearchResultsPage() {
                                     {sortedHotels.length} résultat{sortedHotels.length > 1 ? "s" : ""}
                                     {displayedHotels.length < sortedHotels.length && (
                                         <span className="text-xs sm:text-sm text-gray-500 font-normal ml-1 sm:ml-2">
-                      {displayedHotels.length} affichés
-                    </span>
+                                            {displayedHotels.length} affichés
+                                        </span>
                                     )}
                                 </p>
                             </div>

@@ -1,33 +1,19 @@
+// src/services/ApiClient.js
 import axios from 'axios';
 
 // ==================== CONSTANTS ====================
 const CONFIG = {
     BASE_URL: 'https://admin.ipro-booking.com/api/hotel',
-    TIMEOUT: {
-        DEFAULT: 60000,
-        SEARCH: 120000,
-    },
-    BATCH: {
-        DEFAULT_SIZE: 5,
-        DEFAULT_DELAY: 100,
-    },
-    LIMITS: {
-        MAX_HOTELS_PER_SEARCH: 20,
-    },
-    RETRY: {
-        MAX_ATTEMPTS: 3,
-        BASE_DELAY: 1000,
-        MAX_DELAY: 5000,
-    },
-    CACHE: {
-        TTL: 5 * 60 * 1000,
-        ENABLED: true,
-    },
+    TIMEOUT: { DEFAULT: 60000, SEARCH: 120000 },
+    BATCH:   { DEFAULT_SIZE: 5, DEFAULT_DELAY: 100 },
+    LIMITS:  { MAX_HOTELS_PER_SEARCH: 20 },
+    RETRY:   { MAX_ATTEMPTS: 3, BASE_DELAY: 1000, MAX_DELAY: 5000 },
+    CACHE:   { TTL: 5 * 60 * 1000, ENABLED: true },
 };
 
 // ==================== CREDENTIALS ====================
 const CREDENTIALS = {
-    Login: import.meta.env.VITE_API_LOGIN ?? 'fEGaXEei4E2A6vb3Nfs',
+    Login:    import.meta.env.VITE_API_LOGIN    ?? 'fEGaXEei4E2A6vb3Nfs',
     Password: import.meta.env.VITE_API_PASSWORD ?? 'LheK+ChFpVQc25ExP4f3',
 };
 
@@ -41,40 +27,40 @@ if (import.meta.env.DEV && !import.meta.env.VITE_API_LOGIN) {
 // ==================== ERROR MESSAGES ====================
 const ERROR_MESSAGES = {
     en: {
-        TIMEOUT: (count) => `Search took too long (${count} hotels). Please reduce the number of hotels.`,
-        NETWORK: 'Network error: Unable to contact server. Check your connection.',
-        HOTEL_ID_REQUIRED: 'Hotel ID is required',
-        HOTEL_NOT_FOUND: (id) => `Hotel with ID ${id} not found`,
-        CHECKIN_REQUIRED: 'checkIn is a required parameter',
-        CHECKOUT_REQUIRED: 'checkOut is a required parameter',
-        HOTELS_REQUIRED: 'hotels is a required parameter and must be a non-empty array',
-        ROOMS_REQUIRED: 'rooms is a required parameter and must be a non-empty array',
-        INVALID_DATE_FORMAT: (field) => `${field} must be in YYYY-MM-DD format`,
-        UNAUTHORIZED: 'Unauthorized access - check credentials',
-        NOT_FOUND: 'Resource not found',
-        SERVER_ERROR: 'Internal server error',
-        REQUEST_FAILED: 'API request failed',
-        BOARDING_TYPE_INVALID: 'Invalid boarding type. Must be one of: RO, BB, HB, FB, AI, SC',
-        INVALID_DATE_RANGE: 'Check-out date must be after check-in date',
-        NO_ROOMS_AVAILABLE: 'No rooms available for the selected dates and criteria',
+        TIMEOUT:              (count) => `Search took too long (${count} hotels). Please reduce the number of hotels.`,
+        NETWORK:              'Network error: Unable to contact server. Check your connection.',
+        HOTEL_ID_REQUIRED:    'Hotel ID is required',
+        HOTEL_NOT_FOUND:      (id) => `Hotel with ID ${id} not found`,
+        CHECKIN_REQUIRED:     'checkIn is a required parameter',
+        CHECKOUT_REQUIRED:    'checkOut is a required parameter',
+        HOTELS_REQUIRED:      'hotels is a required parameter and must be a non-empty array',
+        ROOMS_REQUIRED:       'rooms is a required parameter and must be a non-empty array',
+        INVALID_DATE_FORMAT:  (field) => `${field} must be in YYYY-MM-DD format`,
+        UNAUTHORIZED:         'Unauthorized access - check credentials',
+        NOT_FOUND:            'Resource not found',
+        SERVER_ERROR:         'Internal server error',
+        REQUEST_FAILED:       'API request failed',
+        BOARDING_TYPE_INVALID:'Invalid boarding type. Must be one of: RO, BB, HB, FB, AI, SC',
+        INVALID_DATE_RANGE:   'Check-out date must be after check-in date',
+        NO_ROOMS_AVAILABLE:   'No rooms available for the selected dates and criteria',
     },
     fr: {
-        TIMEOUT: (count) => `La recherche a pris trop de temps (${count} hôtels). Veuillez réduire le nombre d'hôtels.`,
-        NETWORK: 'Erreur réseau: impossible de contacter le serveur. Vérifiez votre connexion.',
-        HOTEL_ID_REQUIRED: "L'ID de l'hôtel est requis",
-        HOTEL_NOT_FOUND: (id) => `Hôtel avec l'ID ${id} introuvable`,
-        CHECKIN_REQUIRED: "La date d'arrivée est requise",
-        CHECKOUT_REQUIRED: 'La date de départ est requise',
-        HOTELS_REQUIRED: "La liste des hôtels est requise et ne doit pas être vide",
-        ROOMS_REQUIRED: 'La liste des chambres est requise et ne doit pas être vide',
-        INVALID_DATE_FORMAT: (field) => `${field} doit être au format YYYY-MM-DD`,
-        UNAUTHORIZED: 'Accès non autorisé - vérifiez les identifiants',
-        NOT_FOUND: 'Ressource introuvable',
-        SERVER_ERROR: 'Erreur interne du serveur',
-        REQUEST_FAILED: 'La requête API a échoué',
-        BOARDING_TYPE_INVALID: 'Type de pension invalide. Doit être: RO, BB, HB, FB, AI, SC',
-        INVALID_DATE_RANGE: "La date de départ doit être après la date d'arrivée",
-        NO_ROOMS_AVAILABLE: 'Aucune chambre disponible pour les dates et critères sélectionnés',
+        TIMEOUT:              (count) => `La recherche a pris trop de temps (${count} hôtels). Veuillez réduire le nombre d'hôtels.`,
+        NETWORK:              'Erreur réseau: impossible de contacter le serveur. Vérifiez votre connexion.',
+        HOTEL_ID_REQUIRED:    "L'ID de l'hôtel est requis",
+        HOTEL_NOT_FOUND:      (id) => `Hôtel avec l'ID ${id} introuvable`,
+        CHECKIN_REQUIRED:     "La date d'arrivée est requise",
+        CHECKOUT_REQUIRED:    'La date de départ est requise',
+        HOTELS_REQUIRED:      "La liste des hôtels est requise et ne doit pas être vide",
+        ROOMS_REQUIRED:       'La liste des chambres est requise et ne doit pas être vide',
+        INVALID_DATE_FORMAT:  (field) => `${field} doit être au format YYYY-MM-DD`,
+        UNAUTHORIZED:         'Accès non autorisé - vérifiez les identifiants',
+        NOT_FOUND:            'Ressource introuvable',
+        SERVER_ERROR:         'Erreur interne du serveur',
+        REQUEST_FAILED:       'La requête API a échoué',
+        BOARDING_TYPE_INVALID:'Type de pension invalide. Doit être: RO, BB, HB, FB, AI, SC',
+        INVALID_DATE_RANGE:   "La date de départ doit être après la date d'arrivée",
+        NO_ROOMS_AVAILABLE:   'Aucune chambre disponible pour les dates et critères sélectionnés',
     },
 };
 
@@ -82,33 +68,33 @@ const ERROR_MESSAGES = {
 class CacheManager {
     constructor(ttl = CONFIG.CACHE.TTL) {
         this.cache = new Map();
-        this.ttl = ttl;
+        this.ttl   = ttl;
     }
-    set(key, value) { this.cache.set(key, { value, timestamp: Date.now() }); }
+    set(key, value)  { this.cache.set(key, { value, timestamp: Date.now() }); }
     get(key) {
         const item = this.cache.get(key);
         if (!item) return null;
         if (Date.now() - item.timestamp > this.ttl) { this.cache.delete(key); return null; }
         return item.value;
     }
-    has(key) { return this.get(key) !== null; }
-    clear() { this.cache.clear(); }
-    delete(key) { this.cache.delete(key); }
-    getStats() { return { size: this.cache.size, keys: Array.from(this.cache.keys()) }; }
+    has(key)      { return this.get(key) !== null; }
+    clear()       { this.cache.clear(); }
+    delete(key)   { this.cache.delete(key); }
+    getStats()    { return { size: this.cache.size, keys: Array.from(this.cache.keys()) }; }
 }
 
 // ==================== API CLIENT ====================
 class ApiClient {
     constructor(language = 'en') {
-        this.language = language;
-        this.messages = ERROR_MESSAGES[language] || ERROR_MESSAGES.en;
-        this.client = axios.create({
+        this.language    = language;
+        this.messages    = ERROR_MESSAGES[language] || ERROR_MESSAGES.en;
+        this.client      = axios.create({
             baseURL: CONFIG.BASE_URL,
             headers: { 'Content-Type': 'application/json' },
             timeout: CONFIG.TIMEOUT.DEFAULT,
         });
-        this.credentials = CREDENTIALS;
-        this.cache = new CacheManager(CONFIG.CACHE.TTL);
+        this.credentials  = CREDENTIALS;
+        this.cache        = new CacheManager(CONFIG.CACHE.TTL);
         this.cancelTokens = new Map();
         this.setupInterceptors();
     }
@@ -138,19 +124,15 @@ class ApiClient {
             (error) => {
                 if (axios.isCancel(error)) {
                     if (import.meta.env.DEV) console.log('Request cancelled:', error.message);
-                    return Promise.reject({
-                        message: 'Request cancelled',
-                        isCancelled: true,
-                        timestamp: new Date().toISOString(),
-                    });
+                    return Promise.reject({ message: 'Request cancelled', isCancelled: true, timestamp: new Date().toISOString() });
                 }
                 const apiError = {
-                    message: error.message,
-                    status: error.response?.status,
-                    data: error.response?.data,
+                    message:        error.message,
+                    status:         error.response?.status,
+                    data:           error.response?.data,
                     isNetworkError: !error.response,
-                    isTimeout: error.code === 'ECONNABORTED',
-                    timestamp: new Date().toISOString(),
+                    isTimeout:      error.code === 'ECONNABORTED',
+                    timestamp:      new Date().toISOString(),
                 };
                 if (import.meta.env.DEV) {
                     if (error.code === 'ECONNABORTED') {
@@ -159,7 +141,7 @@ class ApiClient {
                         console.error('API Error:', error.response.status, error.response.data);
                         switch (error.response.status) {
                             case 401: console.error(this.messages.UNAUTHORIZED); break;
-                            case 404: console.error(this.messages.NOT_FOUND); break;
+                            case 404: console.error(this.messages.NOT_FOUND);    break;
                             case 500: console.error(this.messages.SERVER_ERROR); break;
                             default:  console.error(this.messages.REQUEST_FAILED);
                         }
@@ -203,8 +185,8 @@ class ApiClient {
 
     isRetryableError(error) {
         if (error.isNetworkError) return true;
-        if (error.isTimeout) return true;
-        if (error.status >= 500) return true;
+        if (error.isTimeout)      return true;
+        if (error.status >= 500)  return true;
         if (error.status === 408 || error.status === 429) return true;
         return false;
     }
@@ -218,10 +200,7 @@ class ApiClient {
     }
     cancelRequest(key) {
         const source = this.cancelTokens.get(key);
-        if (source) {
-            source.cancel(`Request ${key} cancelled`);
-            this.cancelTokens.delete(key);
-        }
+        if (source) { source.cancel(`Request ${key} cancelled`); this.cancelTokens.delete(key); }
     }
     cancelAllRequests() {
         this.cancelTokens.forEach((source) => source.cancel('All requests cancelled'));
@@ -313,10 +292,10 @@ class ApiClient {
         const data = await this.retryRequest(async () => {
             const response = await this.client.post('/ListCurrency', this.createRequestBody());
             return {
-                currencies: response.data.ListCurrency || [],
+                currencies:   response.data.ListCurrency || [],
                 countResults: response.data.CountResults || 0,
                 errorMessage: response.data.ErrorMessage || [],
-                timing: response.data.Timing || null,
+                timing:       response.data.Timing || null,
             };
         });
         if (CONFIG.CACHE.ENABLED) this.cache.set(cacheKey, data);
@@ -328,10 +307,7 @@ class ApiClient {
         const cacheKey = cityId ? `hotels_city_${cityId}` : 'hotels_all';
         if (CONFIG.CACHE.ENABLED) {
             const cached = this.cache.get(cacheKey);
-            if (cached) {
-                if (import.meta.env.DEV) console.log(`✅ Using cached hotel list (${cacheKey})`);
-                return cached;
-            }
+            if (cached) { if (import.meta.env.DEV) console.log(`✅ Using cached hotel list (${cacheKey})`); return cached; }
         }
         const data = await this.retryRequest(async () => {
             const requestBody = cityId
@@ -349,16 +325,10 @@ class ApiClient {
         const cacheKey = `hotel_${hotelId}`;
         if (CONFIG.CACHE.ENABLED) {
             const cached = this.cache.get(cacheKey);
-            if (cached) {
-                if (import.meta.env.DEV) console.log(`✅ Using cached hotel detail (${hotelId})`);
-                return cached;
-            }
+            if (cached) { if (import.meta.env.DEV) console.log(`✅ Using cached hotel detail (${hotelId})`); return cached; }
         }
         const data = await this.retryRequest(async () => {
-            const response = await this.client.post(
-                '/HotelDetail',
-                this.createRequestBody({ Hotel: hotelId })
-            );
+            const response = await this.client.post('/HotelDetail', this.createRequestBody({ Hotel: hotelId }));
             const hotelDetail = response.data.HotelDetail || null;
             if (!hotelDetail) {
                 throw new Error(
@@ -386,19 +356,19 @@ class ApiClient {
     async getHotelsBatch(hotelIds = [], options = {}) {
         if (!Array.isArray(hotelIds) || hotelIds.length === 0) return {};
         const {
-            batchSize = CONFIG.BATCH.DEFAULT_SIZE,
-            delayBetweenBatches = CONFIG.BATCH.DEFAULT_DELAY,
+            batchSize             = CONFIG.BATCH.DEFAULT_SIZE,
+            delayBetweenBatches   = CONFIG.BATCH.DEFAULT_DELAY,
         } = options;
         if (import.meta.env.DEV) console.log(`🔄 Fetching ${hotelIds.length} hotels in batches of ${batchSize}...`);
-        const hotelsMap = {};
+        const hotelsMap   = {};
         const totalBatches = Math.ceil(hotelIds.length / batchSize);
         for (let i = 0; i < hotelIds.length; i += batchSize) {
-            const batch = hotelIds.slice(i, i + batchSize);
+            const batch        = hotelIds.slice(i, i + batchSize);
             const currentBatch = Math.floor(i / batchSize) + 1;
             if (import.meta.env.DEV) console.log(`📦 Processing batch ${currentBatch}/${totalBatches} (${batch.length} hotels)`);
             const batchPromises = batch.map(id =>
                 this.getHotel(id)
-                    .then(hotel => ({ id, hotel, success: true }))
+                    .then(hotel  => ({ id, hotel, success: true }))
                     .catch(error => {
                         if (import.meta.env.DEV) console.error(`❌ Failed to fetch hotel ${id}:`, error.message);
                         return { id, hotel: null, success: false, error: error.message };
@@ -440,18 +410,14 @@ class ApiClient {
 
             const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
             if (!dateRegex.test(searchParams.checkIn)) {
-                throw new Error(
-                    typeof this.messages.INVALID_DATE_FORMAT === 'function'
-                        ? this.messages.INVALID_DATE_FORMAT('checkIn')
-                        : 'checkIn must be in YYYY-MM-DD format'
-                );
+                throw new Error(typeof this.messages.INVALID_DATE_FORMAT === 'function'
+                    ? this.messages.INVALID_DATE_FORMAT('checkIn')
+                    : 'checkIn must be in YYYY-MM-DD format');
             }
             if (!dateRegex.test(searchParams.checkOut)) {
-                throw new Error(
-                    typeof this.messages.INVALID_DATE_FORMAT === 'function'
-                        ? this.messages.INVALID_DATE_FORMAT('checkOut')
-                        : 'checkOut must be in YYYY-MM-DD format'
-                );
+                throw new Error(typeof this.messages.INVALID_DATE_FORMAT === 'function'
+                    ? this.messages.INVALID_DATE_FORMAT('checkOut')
+                    : 'checkOut must be in YYYY-MM-DD format');
             }
 
             const bookingDetails = {
@@ -459,7 +425,7 @@ class ApiClient {
                 CheckOut: searchParams.checkOut,
                 Hotels:   limitedHotels,
             };
-            const filters = searchParams.filters || {};
+            const filters       = searchParams.filters || {};
             const searchFilters = {
                 Keywords:      filters.keywords      || '',
                 Category:      filters.category      || [],
@@ -484,7 +450,7 @@ class ApiClient {
 
             const response = await this.retryRequest(async () => {
                 return await this.client.post('/HotelSearch', requestBody, {
-                    timeout: CONFIG.TIMEOUT.SEARCH,
+                    timeout:     CONFIG.TIMEOUT.SEARCH,
                     cancelToken: cancelToken.token,
                 });
             });
@@ -494,14 +460,14 @@ class ApiClient {
             this.cancelTokens.delete('hotelSearch');
 
             return {
-                hotelSearch:      response.data.HotelSearch || [],
-                countResults:     response.data.CountResults || 0,
-                errorMessage:     response.data.ErrorMessage || null,
-                searchId:         response.data.SearchId || null,
-                timing:           response.data.Timing || null,
-                _limitApplied:    limitApplied,
-                _requestedHotels: searchParams.hotels.length,
-                _searchedHotels:  limitedHotels.length,
+                hotelSearch:       response.data.HotelSearch || [],
+                countResults:      response.data.CountResults || 0,
+                errorMessage:      response.data.ErrorMessage || null,
+                searchId:          response.data.SearchId || null,
+                timing:            response.data.Timing || null,
+                _limitApplied:     limitApplied,
+                _requestedHotels:  searchParams.hotels.length,
+                _searchedHotels:   limitedHotels.length,
             };
         } catch (error) {
             this.cancelTokens.delete('hotelSearch');
@@ -517,16 +483,6 @@ class ApiClient {
         }
     }
 
-    /**
-     * Search for room availability and pricing for a specific hotel.
-     * @param {Object} params
-     * @param {number} params.hotelId
-     * @param {string} params.checkIn   - YYYY-MM-DD
-     * @param {string} params.checkOut  - YYYY-MM-DD
-     * @param {Array}  params.rooms     - [{ adults, children, childAges? }]
-     * @param {string} [params.boardingType] - e.g. 'BB', 'HB' — omit to get ALL
-     * @returns {{ rooms, roomsByPax, errorMessage, hotelInfo, searchId, timing }}
-     */
     async searchRoomAvailability(params = {}) {
         const cancelToken = this.createCancelToken('roomAvailability');
         try {
@@ -538,18 +494,14 @@ class ApiClient {
 
             const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
             if (!dateRegex.test(params.checkIn)) {
-                throw new Error(
-                    typeof this.messages.INVALID_DATE_FORMAT === 'function'
-                        ? this.messages.INVALID_DATE_FORMAT('checkIn')
-                        : 'checkIn must be in YYYY-MM-DD format'
-                );
+                throw new Error(typeof this.messages.INVALID_DATE_FORMAT === 'function'
+                    ? this.messages.INVALID_DATE_FORMAT('checkIn')
+                    : 'checkIn must be in YYYY-MM-DD format');
             }
             if (!dateRegex.test(params.checkOut)) {
-                throw new Error(
-                    typeof this.messages.INVALID_DATE_FORMAT === 'function'
-                        ? this.messages.INVALID_DATE_FORMAT('checkOut')
-                        : 'checkOut must be in YYYY-MM-DD format'
-                );
+                throw new Error(typeof this.messages.INVALID_DATE_FORMAT === 'function'
+                    ? this.messages.INVALID_DATE_FORMAT('checkOut')
+                    : 'checkOut must be in YYYY-MM-DD format');
             }
 
             const checkInDate  = new Date(params.checkIn);
@@ -568,12 +520,7 @@ class ApiClient {
                 }
                 return roomObj;
             });
-            const searchFilters = {
-                Keywords:      '',
-                Category:      [],
-                OnlyAvailable: true,
-                Tags:          [],
-            };
+            const searchFilters = { Keywords: '', Category: [], OnlyAvailable: true, Tags: [] };
             if (params.boardingType) searchFilters.Boarding = [params.boardingType];
 
             const requestBody = this.createRequestBody({
@@ -589,7 +536,7 @@ class ApiClient {
 
             const response = await this.retryRequest(async () => {
                 return await this.client.post('/HotelSearch', requestBody, {
-                    timeout: CONFIG.TIMEOUT.SEARCH,
+                    timeout:     CONFIG.TIMEOUT.SEARCH,
                     cancelToken: cancelToken.token,
                 });
             });
@@ -599,26 +546,16 @@ class ApiClient {
             const hotelResults = response.data.HotelSearch || [];
             if (hotelResults.length === 0) {
                 if (import.meta.env.DEV) console.log('❌ No availability found for the specified dates');
-                return {
-                    rooms:        [],
-                    roomsByPax:   [],
-                    errorMessage: [this.messages.NO_ROOMS_AVAILABLE],
-                    hotelInfo:    null,
-                };
+                return { rooms: [], roomsByPax: [], errorMessage: [this.messages.NO_ROOMS_AVAILABLE], hotelInfo: null };
             }
 
             const hotelResult = hotelResults[0];
             if (!hotelResult.Price?.Boarding?.length) {
                 if (import.meta.env.DEV) console.log('⚠️ Hotel found but no boarding/pricing data');
                 return {
-                    rooms:        [],
-                    roomsByPax:   [],
+                    rooms: [], roomsByPax: [],
                     errorMessage: ['Aucune chambre disponible pour les dates et critères sélectionnés'],
-                    hotelInfo: {
-                        hotelId:   hotelResult.Hotel?.Id,
-                        hotelName: hotelResult.Hotel?.Name,
-                        available: false,
-                    },
+                    hotelInfo: { hotelId: hotelResult.Hotel?.Id, hotelName: hotelResult.Hotel?.Name, available: false },
                 };
             }
 
@@ -628,12 +565,12 @@ class ApiClient {
             if (import.meta.env.DEV) {
                 console.log(`✅ Found ${processedRooms.length} room option(s) across ${roomsByPax.length} pax slot(s)`);
                 roomsByPax.forEach((p, i) =>
-                    console.log(`  Slot ${i + 1}: ${p.adults} adult(s) → ${p.rooms.length} room option(s)`)
+                    console.log(` Slot ${i + 1}: ${p.adults} adult(s) → ${p.rooms.length} room option(s)`)
                 );
             }
 
             return {
-                rooms:        processedRooms,
+                rooms: processedRooms,
                 roomsByPax,
                 errorMessage: response.data.ErrorMessage || [],
                 hotelInfo: {
@@ -647,14 +584,15 @@ class ApiClient {
             };
         } catch (error) {
             this.cancelTokens.delete('roomAvailability');
-            if (error.isCancelled) throw error;
-            if (error.isTimeout)      throw new Error('Room availability search timed out. Please try again.');
+            if (error.isCancelled)   throw error;
+            if (error.isTimeout)     throw new Error('Room availability search timed out. Please try again.');
             if (error.isNetworkError) throw new Error(this.messages.NETWORK);
-            if (import.meta.env.DEV)  console.error('❌ Room availability error:', error.message);
+            if (import.meta.env.DEV) console.error('❌ Room availability error:', error.message);
             throw error;
         }
     }
 
+    // ✅ UPDATED — added basePrice + stopReservation to each room object
     /** @private */
     _processRoomResults(hotelResult, boardingType = null) {
         const rooms = [];
@@ -664,18 +602,22 @@ class ApiClient {
             if (boardingType && boardingCode !== boardingType) return;
             boarding.Pax?.forEach((pax, paxIndex) => {
                 pax.Rooms?.forEach((room, roomIndex) => {
-                    const roomCode = room.RoomCode || room.Code || `room_${roomIndex}`;
+                    const roomCode  = room.RoomCode || room.Code || `room_${roomIndex}`;
+                    const price     = parseFloat(room.Price)     || 0;
+                    const basePrice = parseFloat(room.BasePrice) || price; // fallback to price if no BasePrice
                     rooms.push({
-                        id: `${hotelResult.Hotel?.Id}_${boardingIndex}_${paxIndex}_${roomIndex}_${roomCode}_${boardingCode}`,
+                        id:                 `${hotelResult.Hotel?.Id}_${boardingIndex}_${paxIndex}_${roomIndex}_${roomCode}_${boardingCode}`,
                         roomCode,
                         name:               room.RoomName || room.Name || 'Chambre Standard',
                         boardingCode,
                         boardingName,
-                        price:              parseFloat(room.Price) || 0,
+                        price,
+                        basePrice,                           // ← NEW
+                        stopReservation:    room.StopReservation ?? false,  // ← NEW
                         currency:           hotelResult.Currency || 'DZD',
                         available:          !room.StopReservation,
                         onRequest:          room.OnRequest ?? false,
-                        quantity:           room.Quantity ?? null,
+                        quantity:           room.Quantity  ?? null,
                         cancellationPolicy: room.CancellationPolicy ?? [],
                         _raw: room,
                     });
@@ -686,12 +628,9 @@ class ApiClient {
         return rooms;
     }
 
-    /**
-     * ✅ FIXED — Match each requested room slot to API Pax by adult count, not by index.
-     * @private
-     */
+    // ✅ UPDATED — added basePrice + stopReservation to each room object
+    /** @private */
     _processRoomsByPax(hotelResult, requestedRooms = [], boardingType = null) {
-        // Step 1 — build adultCount → rooms lookup
         const adultCountToRooms = new Map();
 
         hotelResult.Price?.Boarding?.forEach((boarding, boardingIndex) => {
@@ -702,21 +641,24 @@ class ApiClient {
             boarding.Pax?.forEach((pax) => {
                 const adultCount = pax.Adult ?? 2;
                 if (!adultCountToRooms.has(adultCount)) adultCountToRooms.set(adultCount, []);
-
                 pax.Rooms?.forEach((room, roomIndex) => {
-                    const roomCode = room.RoomCode || room.Code || `room_${roomIndex}`;
+                    const roomCode  = room.RoomCode || room.Code || `room_${roomIndex}`;
+                    const price     = parseFloat(room.Price)     || 0;
+                    const basePrice = parseFloat(room.BasePrice) || price;
                     adultCountToRooms.get(adultCount).push({
-                        id: `${hotelResult.Hotel?.Id}_${adultCount}_${boardingIndex}_${roomIndex}_${roomCode}_${boardingCode}`,
+                        id:                 `${hotelResult.Hotel?.Id}_${adultCount}_${boardingIndex}_${roomIndex}_${roomCode}_${boardingCode}`,
                         roomCode,
                         name:               room.RoomName || room.Name || 'Chambre Standard',
                         boardingCode,
                         boardingName,
-                        price:              parseFloat(room.Price) || 0,
+                        price,
+                        basePrice,                           // ← NEW
+                        stopReservation:    room.StopReservation ?? false,  // ← NEW
                         currency:           hotelResult.Currency || 'DZD',
                         adults:             adultCount,
                         available:          !room.StopReservation,
                         onRequest:          room.OnRequest ?? false,
-                        quantity:           room.Quantity ?? null,
+                        quantity:           room.Quantity  ?? null,
                         cancellationPolicy: room.CancellationPolicy ?? [],
                         _raw: room,
                     });
@@ -727,7 +669,6 @@ class ApiClient {
         if (import.meta.env.DEV)
             console.log('📊 Available adult counts from API:', Array.from(adultCountToRooms.keys()));
 
-        // Step 2 — map each requested slot by adult count (exact → closest fallback)
         const availableCounts = Array.from(adultCountToRooms.keys()).sort((a, b) => a - b);
 
         return requestedRooms.map((requestedRoom, paxIndex) => {
@@ -752,7 +693,7 @@ class ApiClient {
                 adults:    requestedAdults,
                 children:  requestedRoom.children  ?? 0,
                 childAges: requestedRoom.childAges ?? [],
-                rooms: [...matchedRooms].sort((a, b) => a.price - b.price),
+                rooms:     [...matchedRooms].sort((a, b) => a.price - b.price),
             };
         });
     }
@@ -815,7 +756,7 @@ class ApiClient {
 
             const batchResults = await Promise.all(batchPromises);
             enhancedHotels.push(...batchResults);
-            if (onProgress)      onProgress(enhancedHotels.length, hotelsList.length);
+            if (onProgress)     onProgress(enhancedHotels.length, hotelsList.length);
             if (onBatchComplete) onBatchComplete(currentBatch, totalBatches, batchResults);
             if (import.meta.env.DEV)
                 console.log(`✅ Batch ${currentBatch}/${totalBatches} done (${enhancedHotels.length}/${hotelsList.length})`);
@@ -835,8 +776,8 @@ class ApiClient {
             return { ...listHotelData, _enhanced: false, _sourceListHotel: true, _sourceHotelDetail: false };
         }
         return {
-            Id:   listHotelData.Id,
-            Name: listHotelData.Name,
+            Id:       listHotelData.Id,
+            Name:     listHotelData.Name,
             Category: {
                 Id:    listHotelData.Category?.Id,
                 Title: hotelDetailData.Category?.Title || listHotelData.Category?.Title,
@@ -848,34 +789,34 @@ class ApiClient {
                 Country: listHotelData.City?.Country || { Name: hotelDetailData.City?.Country },
             },
             ShortDescription: listHotelData.ShortDescription,
-            Address:          listHotelData.Adress || listHotelData.Address,
+            Address:          listHotelData.Adress   || listHotelData.Address,
             Adress:           listHotelData.Adress,
             Localization:     listHotelData.Localization,
             Facilities:       listHotelData.Facilities || [],
             FreeChild:        listHotelData.FreeChild  || hotelDetailData.FreeChild || [],
             Email:            hotelDetailData.Email,
             Phone:            hotelDetailData.Phone,
-            Vues:             hotelDetailData.Vues     || [],
+            Vues:             hotelDetailData.Vues    || [],
             Type:             hotelDetailData.Type,
-            Album:            hotelDetailData.Album    || [],
-            Tag:              hotelDetailData.Tag      || [],
+            Album:            hotelDetailData.Album   || [],
+            Tag:              hotelDetailData.Tag     || [],
             Boarding:         hotelDetailData.Boarding || [],
-            Image:            listHotelData.Image      || hotelDetailData.Image,
-            Images:           hotelDetailData.Album    || [listHotelData.Image].filter(Boolean),
+            Image:            listHotelData.Image     || hotelDetailData.Image,
+            Images:           hotelDetailData.Album   || [listHotelData.Image].filter(Boolean),
             Description:      hotelDetailData.Description || listHotelData.ShortDescription,
-            Theme:            hotelDetailData.Theme    || listHotelData.Theme    || [],
+            Theme:            hotelDetailData.Theme   || listHotelData.Theme || [],
             Equipments:       hotelDetailData.Equipments || listHotelData.Facilities || [],
-            _enhanced:          true,
-            _sourceListHotel:   true,
-            _sourceHotelDetail: true,
-            _mergedAt:          new Date().toISOString(),
+            _enhanced:           true,
+            _sourceListHotel:    true,
+            _sourceHotelDetail:  true,
+            _mergedAt:           new Date().toISOString(),
         };
     }
 
     // ==================== CACHE UTILITIES ====================
-    clearCache()         { this.cache.clear();     if (import.meta.env.DEV) console.log('🗑️ Cache cleared'); }
-    clearCacheEntry(key) { this.cache.delete(key); if (import.meta.env.DEV) console.log(`🗑️ Cache entry '${key}' cleared`); }
-    getCacheStats()      { return this.cache.getStats(); }
+    clearCache()          { this.cache.clear();        if (import.meta.env.DEV) console.log('🗑️ Cache cleared'); }
+    clearCacheEntry(key)  { this.cache.delete(key);    if (import.meta.env.DEV) console.log(`🗑️ Cache entry '${key}' cleared`); }
+    getCacheStats()       { return this.cache.getStats(); }
 }
 
 // ==================== SINGLETON EXPORT ====================
