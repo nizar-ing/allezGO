@@ -6,6 +6,7 @@ import Loader from "./ui/Loader.jsx";
 
 // Eager — Layout is the app shell (Header + Footer)
 import Layout from "./pages/Layout.jsx";
+import BookingPage from "./pages/BookingPage.jsx";
 
 // Lazy — page bundles
 const HomePage                = lazy(() => import("./pages/HomePage.jsx"));
@@ -47,6 +48,9 @@ function App() {
                         <Route path="hotel/:hotelId"    element={<HotelDetails />} />
                         <Route path="search"            element={<SearchResultsPage />} />
                         <Route path="hotels-search"     element={<HotelsSearchResultsPage />} />
+
+                        {/* Booking */}
+                        <Route path="booking/:hotelId" element={<BookingPage />} />
 
                         {/* Organized trips */}
                         <Route path="voyages-organises"     element={<OrganizedTrips />} />

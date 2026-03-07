@@ -3,9 +3,9 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
-    MapPin, Star, ChevronLeft, ChevronRight, ChevronDown, X, Tag, Users, Eye, Sparkles,
+    MapPin, Star, ChevronLeft, ChevronRight, ChevronDown, X, Users, Eye, Sparkles,
     Navigation, Mountain, Home, CheckCircle2, Calendar, AlertCircle,
-    LayoutGrid, Images, Info, Building2, BedDouble, Clock,
+    LayoutGrid, Images, Building2, BedDouble, Clock,
     Wifi, Car, Utensils, Waves, Wind, Coffee, Dumbbell, ExternalLink,
 } from "lucide-react";
 import toast from "react-hot-toast";

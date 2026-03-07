@@ -334,8 +334,60 @@ function SearchResultsPage() {
     }, [navigate, buildHotelUrl]);
 
     const handleBookHotel = useCallback((hotel) => {
-        navigate(buildHotelUrl(hotel.Id));
-    }, [navigate, buildHotelUrl]);
+        const preloadedRooms = hotel.preloadedRooms ?? [];
+
+        // ── Fallback: if no preloaded rooms yet → go to HotelDetails to search first
+        if (!preloadedRooms.length || !checkIn || !checkOut) {
+            navigate(buildHotelUrl(hotel.Id));
+            return;
+        }
+
+        // ── Pick first available boarding type
+        const firstBoardingCode = preloadedRooms[0]?.boardingCode ?? null;
+        const boardingRooms     = preloadedRooms.filter((r) => r.boardingCode === firstBoardingCode);
+
+        // ── Auto-select cheapest room per pax slot
+        const selectedRoomsList = rooms.map((room) => {
+            const adultCount    = room.adults ?? 2;
+            const matchingRooms = boardingRooms.filter((r) => r.adults === adultCount);
+            const pool          = matchingRooms.length > 0 ? matchingRooms : boardingRooms;
+            const bestRoom      = pool.reduce(
+                (best, r) => (!best || (r.price ?? Infinity) < (best.price ?? Infinity)) ? r : best,
+                null
+            );
+            return {
+                roomType:  bestRoom?.name  ?? null,
+                roomId:    bestRoom?.id    ?? null,
+                adults:    adultCount,
+                children:  Array.isArray(room.children)
+                    ? room.children.length
+                    : (room.children ?? 0),
+                childAges: Array.isArray(room.children)
+                    ? room.children.map((c) => c.age ?? c)
+                    : [],
+                price: bestRoom?.price ?? 0,
+                total: bestRoom ? (bestRoom.price ?? 0) * nights : 0,
+            };
+        });
+
+        const totalPrice = selectedRoomsList.reduce((acc, r) => acc + r.total, 0);
+
+        const bookingData = {
+            hotelId:      hotel.Id,
+            hotelName:    hotel.Name,
+            checkIn,
+            checkOut,
+            nights,
+            boardingType: firstBoardingCode,
+            rooms:        selectedRoomsList,
+            totalPrice,
+            currency:     hotel.pricing?.currency ?? "DZD",
+        };
+
+        navigate(`/booking/${hotel.Id}`, {
+            state: { ...bookingData, hotel },
+        });
+    }, [navigate, buildHotelUrl, rooms, checkIn, checkOut, nights]);
 
     // ── Helpers ─────────────────────────────────────────────────────────────────
     const totalGuests = useMemo(() => ({
