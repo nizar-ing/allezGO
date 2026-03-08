@@ -6,7 +6,7 @@ import Loader from "./ui/Loader.jsx";
 
 // Eager — Layout is the app shell (Header + Footer)
 import Layout from "./pages/Layout.jsx";
-import BookingPage from "./pages/BookingPage.jsx";
+
 
 // Lazy — page bundles
 const HomePage                = lazy(() => import("./pages/HomePage.jsx"));
@@ -14,6 +14,7 @@ const HotelDetails            = lazy(() => import("./pages/HotelDetails.jsx"));
 const HotelsPerCityPage       = lazy(() => import("./pages/HotelsPerCityPage.jsx"));
 const SearchResultsPage       = lazy(() => import("./pages/SearchResultsPage.jsx"));
 const HotelsSearchResultsPage = lazy(() => import("./pages/HotelsSearchResultsPage.jsx"));
+const BookingPage = lazy(() => import("./pages/BookingPage.jsx"));
 const OrganizedTrips = lazy(() => import("./pages/OrganizedTrips.jsx"));
 const OrganizedTrip           = lazy(() => import("./pages/OrganizedTrip.jsx"));       // detail
 const EVisa                   = lazy(() => import("./pages/E_Visa.jsx"));
