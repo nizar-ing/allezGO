@@ -73,7 +73,6 @@ const buildDetailUrl = (hotelId, searchParams) => {
     return `/hotel/${hotelId}${qs ? `?${qs}` : ''}`;
 };
 
-// ✅ returns { pct, saving } when basePrice > price, null otherwise
 const getDiscountInfo = (room) => {
     if (!room?.basePrice || !room?.price || room.basePrice <= room.price) return null;
     const pct = Math.round(((room.basePrice - room.price) / room.basePrice) * 100);
@@ -189,7 +188,7 @@ function HotelLightCard({
                 paxIndex:  idx,
                 adults:    requestedAdults,
                 children:  room.children  ?? 0,
-                childAges: room.childAges ?? [],
+                childAges: Array.isArray(room.children) ? room.children : (room.childAges ?? []),
                 rooms:     [...matchedRooms].sort((a, b) => a.price - b.price),
             };
         });
@@ -312,11 +311,20 @@ function HotelLightCard({
         navigate(detailUrl);
     }, [onBook, hotel, navigate, detailUrl]);
 
+    // ✅ FIX: merge pax-level children + childAges into each room object
     const handleBookAll = useCallback(() => {
         const selectedRoomsList = effectiveRoomsByPax
-            .map((pax, idx) =>
-                pax.rooms.find(r => r.id === selectedRooms[idx] && r.boardingCode === selectedBoarding) ?? null
-            )
+            .map((pax, idx) => {
+                const room = pax.rooms.find(
+                    r => r.id === selectedRooms[idx] && r.boardingCode === selectedBoarding
+                ) ?? null;
+                if (!room) return null;
+                return {
+                    ...room,
+                    children:  pax.children  ?? 0,
+                    childAges: Array.isArray(pax.childAges) ? pax.childAges : [],
+                };
+            })
             .filter(Boolean);
         if (onBook) { onBook(hotel, selectedRoomsList); return; }
         navigate(detailUrl);
@@ -603,7 +611,7 @@ function HotelLightCard({
                                             <p className="text-xs text-gray-400 italic">Aucune chambre disponible.</p>
                                         ) : (
                                             <>
-                                                {/* Room selector dropdown */}
+                                                {/* Room selector */}
                                                 <div className="relative">
                                                     <select
                                                         value={selectedRoomId ?? ''}
@@ -628,7 +636,6 @@ function HotelLightCard({
                                                 {/* Selected room summary + badges */}
                                                 {selectedRoom && (
                                                     <div className="mt-2.5 bg-sky-50 rounded-xl px-3 py-2.5 flex flex-col gap-1.5">
-                                                        {/* Price row */}
                                                         <div className="flex items-center justify-between">
                                                             <span className="text-[11px] text-sky-600 font-semibold">{selectedRoom.boardingName}</span>
                                                             <div className="flex items-baseline gap-1.5">
@@ -644,7 +651,6 @@ function HotelLightCard({
                                                             </div>
                                                         </div>
 
-                                                        {/* Room-level status badges */}
                                                         <div className="flex items-center gap-1.5 flex-wrap">
                                                             {discount && (
                                                                 <span className="inline-flex items-center gap-1 bg-rose-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full">
@@ -716,7 +722,6 @@ function HotelLightCard({
                                         key={room.id}
                                         className="group/row flex items-center justify-between gap-3 bg-white hover:bg-sky-50 border border-gray-100 hover:border-sky-200 rounded-2xl px-4 py-3 transition-all duration-150"
                                     >
-                                        {/* Room info */}
                                         <div className="min-w-0">
                                             <p className="text-sm font-semibold text-gray-800 group-hover/row:text-sky-700 transition-colors flex items-center gap-1.5 flex-wrap">
                                                 {room.name}
@@ -740,7 +745,6 @@ function HotelLightCard({
                                             </p>
                                         </div>
 
-                                        {/* Price + book */}
                                         <div className="flex items-center gap-3 shrink-0">
                                             <div className="text-right">
                                                 <p className="text-sm font-extrabold text-sky-700 leading-none">
