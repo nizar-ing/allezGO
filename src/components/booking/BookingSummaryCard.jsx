@@ -1,9 +1,9 @@
+// src/components/booking/BookingSummaryCard.jsx
 import {
     Hotel, MapPin, Calendar, Moon, BedDouble,
     Users, Utensils, Tag, Star,
 } from "lucide-react";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 const BOARDING_LABELS = {
     RO: "Chambre Seule",
     BB: "Bed & Breakfast",
@@ -13,7 +13,6 @@ const BOARDING_LABELS = {
     SC: "Self Catering",
 };
 
-// ─── Local sub-component ──────────────────────────────────────────────────────
 function Row({ icon: Icon, label, value }) {
     return (
         <div className="flex items-start justify-between gap-3 py-2.5 border-b border-gray-50 last:border-0">
@@ -28,7 +27,6 @@ function Row({ icon: Icon, label, value }) {
     );
 }
 
-// ─── Main export ──────────────────────────────────────────────────────────────
 export default function BookingSummaryCard({ bookingState }) {
     if (!bookingState) return null;
 
@@ -89,13 +87,13 @@ export default function BookingSummaryCard({ bookingState }) {
                     {/* Detail rows */}
                     <div className="mb-4">
                         {checkIn && checkOut && (
-                            <Row icon={Calendar}  label="Dates"     value={`${checkIn} → ${checkOut}`} />
+                            <Row icon={Calendar}  label="Dates"    value={`${checkIn} → ${checkOut}`} />
                         )}
                         {nights > 0 && (
-                            <Row icon={Moon}      label="Durée"     value={`${nights} nuit${nights > 1 ? "s" : ""}`} />
+                            <Row icon={Moon}      label="Durée"    value={`${nights} nuit${nights > 1 ? "s" : ""}`} />
                         )}
                         {rooms.length > 0 && (
-                            <Row icon={BedDouble} label="Chambres"  value={`${rooms.length} chambre${rooms.length > 1 ? "s" : ""}`} />
+                            <Row icon={BedDouble} label="Chambres" value={`${rooms.length} chambre${rooms.length > 1 ? "s" : ""}`} />
                         )}
                         {totalAdults > 0 && (
                             <Row
@@ -105,7 +103,7 @@ export default function BookingSummaryCard({ bookingState }) {
                             />
                         )}
                         {boardingType && (
-                            <Row icon={Utensils}  label="Pension"   value={boardLabel} />
+                            <Row icon={Utensils} label="Pension" value={boardLabel} />
                         )}
                     </div>
 
@@ -115,24 +113,32 @@ export default function BookingSummaryCard({ bookingState }) {
                             <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest mb-1">
                                 Types de chambre
                             </p>
-                            {rooms.map((room, i) => (
-                                <div
-                                    key={i}
-                                    className="flex items-center justify-between gap-2 bg-sky-50 border border-sky-100 rounded-xl px-3 py-2"
-                                >
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        <Tag size={11} className="text-sky-400 shrink-0" />
-                                        <span className="text-xs font-bold text-sky-700 truncate">
-                                            {room.roomType ?? `Chambre ${i + 1}`}
-                                        </span>
+                            {rooms.map((room, i) => {
+                                // ✅ FIX: HotelLightCard sends `name` + `price`
+                                //         HotelDetails  sends `roomType` + `total`
+                                const label      = room.roomType ?? room.name ?? `Chambre ${i + 1}`;
+                                const roomTotal  = room.total > 0
+                                    ? room.total
+                                    : (room.price ? room.price * (nights ?? 1) : 0);
+                                return (
+                                    <div
+                                        key={i}
+                                        className="flex items-center justify-between gap-2 bg-sky-50 border border-sky-100 rounded-xl px-3 py-2"
+                                    >
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <Tag size={11} className="text-sky-400 shrink-0" />
+                                            <span className="text-xs font-bold text-sky-700 truncate">
+                                                {label}
+                                            </span>
+                                        </div>
+                                        {roomTotal > 0 && (
+                                            <span className="text-xs font-extrabold text-sky-600 shrink-0">
+                                                {new Intl.NumberFormat("fr-DZ").format(roomTotal)} {currency}
+                                            </span>
+                                        )}
                                     </div>
-                                    {room.total > 0 && (
-                                        <span className="text-xs font-extrabold text-sky-600 shrink-0">
-                                            {new Intl.NumberFormat("fr-DZ").format(room.total)} {currency}
-                                        </span>
-                                    )}
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
 
