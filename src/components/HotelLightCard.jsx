@@ -73,7 +73,7 @@ const buildDetailUrl = (hotelId, searchParams) => {
     return `/hotel/${hotelId}${qs ? `?${qs}` : ''}`;
 };
 
-// ✅ NEW — returns { pct, saving } when basePrice > price, null otherwise
+// ✅ returns { pct, saving } when basePrice > price, null otherwise
 const getDiscountInfo = (room) => {
     if (!room?.basePrice || !room?.price || room.basePrice <= room.price) return null;
     const pct = Math.round(((room.basePrice - room.price) / room.basePrice) * 100);
@@ -157,11 +157,6 @@ function HotelLightCard({
         return derivedMinPrice * nights;
     }, [derivedMinPrice, nights]);
 
-    // ✅ NEW — card-level availability badge
-    // null   = not yet fetched → badge stays hidden
-    // 'available' = all rooms bookable
-    // 'last'      = at least one room has stopReservation
-    // 'full'      = all rooms have stopReservation OR noAvailability
     const cardAvailabilityStatus = useMemo(() => {
         if (noAvailability) return 'full';
         if (!hasFetched || !allRooms.length) return null;
@@ -375,7 +370,7 @@ function HotelLightCard({
                         <Heart size={15} className={isFavorite ? 'fill-white text-white' : 'text-gray-500'} />
                     </button>
 
-                    {/* ✅ NEW — Discount badge (top-left, only when stars are absent or offset) */}
+                    {/* Discount badge */}
                     {pricing?.discountPercent != null && (
                         <div className="absolute top-3 left-3 bg-rose-500 text-white text-[11px] font-extrabold px-2.5 py-1 rounded-full shadow-md border border-rose-400/30 flex items-center gap-1">
                             🏷 -{pricing.discountPercent}%
@@ -417,7 +412,7 @@ function HotelLightCard({
                         {City?.Name}{City?.Country?.Name ? `, ${City.Country.Name}` : ''}
                     </p>
 
-                    {/* ✅ NEW — Card-level availability badge (shown only after fetch) */}
+                    {/* Card-level availability badge */}
                     {cardAvailabilityStatus && (
                         <div className="flex items-center">
                             {cardAvailabilityStatus === 'available' && (
@@ -520,7 +515,7 @@ function HotelLightCard({
                                 onClick={handleViewDetail}
                                 className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-700 text-xs font-bold px-4 py-2.5 rounded-xl transition-all duration-150"
                             >
-                                Voir <ChevronRight size={14} />
+                                Voir Détails <ChevronRight size={14} />
                             </button>
                         </div>
                     </div>
@@ -608,7 +603,7 @@ function HotelLightCard({
                                             <p className="text-xs text-gray-400 italic">Aucune chambre disponible.</p>
                                         ) : (
                                             <>
-                                                {/* Room selector */}
+                                                {/* Room selector dropdown */}
                                                 <div className="relative">
                                                     <select
                                                         value={selectedRoomId ?? ''}
@@ -649,15 +644,13 @@ function HotelLightCard({
                                                             </div>
                                                         </div>
 
-                                                        {/* ✅ NEW — Room-level status badges */}
+                                                        {/* Room-level status badges */}
                                                         <div className="flex items-center gap-1.5 flex-wrap">
-                                                            {/* Discount badge */}
                                                             {discount && (
                                                                 <span className="inline-flex items-center gap-1 bg-rose-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full">
                                                                     🏷 -{discount.pct}% · Économie {formatPrice(discount.saving)} DZD
                                                                 </span>
                                                             )}
-                                                            {/* Reservation status badge */}
                                                             {selectedRoom.stopReservation ? (
                                                                 <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-red-200">
                                                                     🔴 Réservation suspendue
@@ -727,7 +720,6 @@ function HotelLightCard({
                                         <div className="min-w-0">
                                             <p className="text-sm font-semibold text-gray-800 group-hover/row:text-sky-700 transition-colors flex items-center gap-1.5 flex-wrap">
                                                 {room.name}
-                                                {/* ✅ NEW — Discount pill on room name */}
                                                 {discount && (
                                                     <span className="inline-flex items-center bg-rose-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-full">
                                                         -{discount.pct}%
@@ -736,7 +728,6 @@ function HotelLightCard({
                                             </p>
                                             <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
                                                 {room.boardingName}
-                                                {/* ✅ NEW — Reservation status pill on boarding name */}
                                                 {room.stopReservation ? (
                                                     <span className="bg-red-50 text-red-700 text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-red-200">
                                                         Suspendu

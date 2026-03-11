@@ -6,7 +6,7 @@ const CONFIG = {
     BASE_URL: 'https://admin.ipro-booking.com/api/hotel',
     TIMEOUT: { DEFAULT: 60000, SEARCH: 120000 },
     BATCH:   { DEFAULT_SIZE: 5, DEFAULT_DELAY: 100 },
-    LIMITS:  { MAX_HOTELS_PER_SEARCH: 20 },
+    LIMITS:  { MAX_HOTELS_PER_SEARCH: 120 },
     RETRY:   { MAX_ATTEMPTS: 3, BASE_DELAY: 1000, MAX_DELAY: 5000 },
     CACHE:   { TTL: 5 * 60 * 1000, ENABLED: true },
 };

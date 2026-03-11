@@ -1,17 +1,20 @@
+// src/components/HotelsPopup.jsx
 import {useRef, useState} from "react";
 import {Link} from "react-router-dom";
 
 /**
  * HotelsPopup Component - Receives enriched data from parent
+ * ✅ City clicks route to HotelsPerCityPage (/hotels/:cityId)
+ *    which owns its own date/room state with sensible defaults.
  */
 const HotelsPopup = ({
                          onClose,
                          isVisible,
                          enrichedCountries = [],
-                         citiesLoading = false,
-                         citiesError = false,
-                         className = "",
-                         style = {}
+                         citiesLoading     = false,
+                         citiesError       = false,
+                         className         = "",
+                         style             = {}
                      }) => {
     const popupRef = useRef(null);
     const [activeTab, setActiveTab] = useState(0);
@@ -41,8 +44,7 @@ const HotelsPopup = ({
             }}
         >
             {/* Header */}
-            <div
-                className="sticky top-0 bg-gradient-to-r from-sky-100 via-sky-50 to-sky-100 rounded-t-2xl border-b border-gray-100 p-3 sm:p-5 pb-2 sm:pb-3 z-10">
+            <div className="sticky top-0 bg-gradient-to-r from-sky-100 via-sky-50 to-sky-100 rounded-t-2xl border-b border-gray-100 p-3 sm:p-5 pb-2 sm:pb-3 z-10">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
                     <div>
                         <h2 className="text-base sm:text-xl font-bold text-sky-800 flex items-center gap-1.5 sm:gap-2">
@@ -70,11 +72,7 @@ const HotelsPopup = ({
                 </div>
 
                 {/* Tabs Navigation */}
-                <div
-                    role="tablist"
-                    aria-label="Country selection"
-                    className="flex gap-2 sm:gap-3"
-                >
+                <div role="tablist" aria-label="Country selection" className="flex gap-2 sm:gap-3">
                     {enrichedCountries.map((country, index) => (
                         <button
                             key={country.name}
@@ -116,8 +114,7 @@ const HotelsPopup = ({
                 {citiesLoading && (
                     <div className="flex items-center justify-center py-12">
                         <div className="text-center">
-                            <div
-                                className="w-12 h-12 border-4 border-sky-200 border-t-sky-600 rounded-full animate-spin mx-auto mb-4"></div>
+                            <div className="w-12 h-12 border-4 border-sky-200 border-t-sky-600 rounded-full animate-spin mx-auto mb-4"/>
                             <p className="text-gray-600 font-semibold">Chargement des destinations...</p>
                         </div>
                     </div>
@@ -141,6 +138,7 @@ const HotelsPopup = ({
                 {/* Cities Content */}
                 {!citiesLoading && !citiesError && (
                     <div className="hotels-fade-in">
+
                         {/* Country Header */}
                         <div className="flex items-center gap-2.5 mb-4 pb-3 border-b-2 border-gradient">
                             <div className="perspective-normal">
@@ -199,8 +197,8 @@ const HotelsPopup = ({
                             </div>
                         ) : (
                             <div className="text-center py-8">
-                                <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor"
-                                     viewBox="0 0 24 24">
+                                <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none"
+                                     stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                                           d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                 </svg>
@@ -212,8 +210,7 @@ const HotelsPopup = ({
             </div>
 
             {/* Footer */}
-            <div
-                className="sticky bottom-0 bg-gradient-to-br from-gray-50 to-white rounded-b-2xl border-t border-gray-100 px-3 sm:px-5 py-2 sm:py-3">
+            <div className="sticky bottom-0 bg-gradient-to-br from-gray-50 to-white rounded-b-2xl border-t border-gray-100 px-3 sm:px-5 py-2 sm:py-3">
                 <p className="text-xs font-mono text-gray-500 text-center">
                     {!citiesLoading && !citiesError && (
                         <>
@@ -226,61 +223,23 @@ const HotelsPopup = ({
                 </p>
             </div>
 
-            <style dangerouslySetInnerHTML={{
-                __html: `
+            <style dangerouslySetInnerHTML={{__html: `
                 @keyframes hotels-fade-in {
-                    from {
-                        opacity: 0;
-                        transform: translateY(10px);
-                    }
-                    to {
-                        opacity: 1;
-                        transform: translateY(0);
-                    }
+                    from { opacity: 0; transform: translateY(10px); }
+                    to   { opacity: 1; transform: translateY(0);    }
                 }
-                
-                .hotels-fade-in {
-                    animation: hotels-fade-in 0.3s ease-out forwards;
-                }
-                
+                .hotels-fade-in { animation: hotels-fade-in 0.3s ease-out forwards; }
                 .hotels-grid {
                     display: grid;
                     grid-template-columns: repeat(1, minmax(0, 1fr));
                 }
-                
-                @media (min-width: 375px) {
-                    .hotels-grid {
-                        grid-template-columns: repeat(2, minmax(0, 1fr));
-                    }
-                }
-                
-                @media (min-width: 640px) {
-                    .hotels-grid {
-                        grid-template-columns: repeat(2, minmax(0, 1fr));
-                    }
-                }
-                
-                @media (min-width: 768px) {
-                    .hotels-grid {
-                        grid-template-columns: repeat(3, minmax(0, 1fr));
-                    }
-                }
-                
-                .border-gradient {
-                    border-image: linear-gradient(to right, #fb923c, #f97316, transparent) 1;
-                }
-                
-                @keyframes spin {
-                    to {
-                        transform: rotate(360deg);
-                    }
-                }
-                
-                .animate-spin {
-                    animation: spin 1s linear infinite;
-                }
-            `
-            }}/>
+                @media (min-width: 375px) { .hotels-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+                @media (min-width: 640px) { .hotels-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+                @media (min-width: 768px) { .hotels-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+                .border-gradient { border-image: linear-gradient(to right, #fb923c, #f97316, transparent) 1; }
+                @keyframes spin { to { transform: rotate(360deg); } }
+                .animate-spin { animation: spin 1s linear infinite; }
+            `}}/>
         </div>
     );
 };

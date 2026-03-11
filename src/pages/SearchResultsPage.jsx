@@ -152,7 +152,7 @@ function SearchResultsPage() {
                     const adultCount = pax.Adult ?? 2;
                     pax.Rooms?.forEach((room) => {
                         const price     = room.Price     ? parseFloat(room.Price)     : null;
-                        const basePrice = room.BasePrice ? parseFloat(room.BasePrice) : null; // ← NEW
+                        const basePrice = room.BasePrice ? parseFloat(room.BasePrice) : null;
                         const roomKey   = `${boarding.Code}__${adultCount}__${room.Code ?? room.Id ?? ""}`;
 
                         if (price && !isNaN(price)) allPrices.push(price);
@@ -164,9 +164,9 @@ function SearchResultsPage() {
                                 boardingCode:    boarding.Code,
                                 boardingName:    boarding.Name,
                                 price:           price     && !isNaN(price)     ? price     : null,
-                                basePrice:       basePrice && !isNaN(basePrice) ? basePrice : null, // ← NEW
-                                stopReservation: room.StopReservation ?? false,                     // ← NEW
-                                onRequest:       room.OnRequest       ?? false,                     // ← NEW
+                                basePrice:       basePrice && !isNaN(basePrice) ? basePrice : null,
+                                stopReservation: room.StopReservation ?? false,
+                                onRequest:       room.OnRequest       ?? false,
                                 currency:        sr.Currency,
                                 adults:          adultCount,
                             });
@@ -179,7 +179,6 @@ function SearchResultsPage() {
             const maxPrice       = allPrices.length > 0 ? Math.max(...allPrices) : null;
             const preloadedRooms = Array.from(roomMap.values());
 
-            // ← NEW — best discount across all rooms for the promo badge
             const discounts = preloadedRooms
                 .filter(r => r.basePrice && r.price && r.basePrice > r.price)
                 .map(r => Math.round(((r.basePrice - r.price) / r.basePrice) * 100));
@@ -192,7 +191,7 @@ function SearchResultsPage() {
                     currency:        sr.Currency,
                     available:       true,
                     token:           sr.Token,
-                    discountPercent: maxDiscount, // ← NEW
+                    discountPercent: maxDiscount,
                 }
                 : null;
 
@@ -320,33 +319,70 @@ function SearchResultsPage() {
 
     const buildHotelUrl = useCallback((id) => {
         const p = new URLSearchParams();
-        if (checkIn)  p.set('checkin',  checkIn);
-        if (checkOut) p.set('checkout', checkOut);
+        if (checkIn)  p.set("checkin",  checkIn);
+        if (checkOut) p.set("checkout", checkOut);
         if (rooms?.length) {
-            try { p.set('rooms', encodeURIComponent(JSON.stringify(rooms))); } catch {}
+            try {
+                const normalized = rooms.map((room) => ({
+                    adults:    room.adults ?? 2,
+                    children:  Array.isArray(room.children)
+                        ? room.children.length
+                        : (room.children ?? 0),
+                    childAges: Array.isArray(room.children)
+                        ? room.children.map((c) => (typeof c === "object" ? c.age ?? 5 : c))
+                        : [],
+                }));
+                p.set("rooms", encodeURIComponent(JSON.stringify(normalized)));
+            } catch {}
         }
         const qs = p.toString();
-        return `/hotel/${id}${qs ? `?${qs}` : ''}`;
+        return `/hotel/${id}${qs ? `?${qs}` : ""}`;
     }, [checkIn, checkOut, rooms]);
 
     const handleViewHotelDetail = useCallback((id) => {
         navigate(buildHotelUrl(id));
     }, [navigate, buildHotelUrl]);
 
-    const handleBookHotel = useCallback((hotel) => {
+    const handleBookHotel = useCallback((hotel, selectedRooms) => {
         const preloadedRooms = hotel.preloadedRooms ?? [];
 
-        // ── Fallback: if no preloaded rooms yet → go to HotelDetails to search first
+        // ── Path 1: user explicitly selected rooms inside the card ──────────────
+        const roomsList = Array.isArray(selectedRooms)
+            ? selectedRooms
+            : selectedRooms
+                ? [selectedRooms]
+                : [];
+
+        if (roomsList.length > 0) {
+            const totalPrice = roomsList.reduce((acc, r) => acc + (r.price ?? 0) * nights, 0);
+            navigate(`/booking/${hotel.Id}`, {
+                state: {
+                    hotel,
+                    hotelId:      hotel.Id,
+                    hotelName:    hotel.Name,
+                    checkIn,
+                    checkOut,
+                    nights,
+                    boardingType: roomsList[0]?.boardingCode ?? null,
+                    rooms:        roomsList,
+                    totalPrice,
+                    currency:     hotel.pricing?.currency ?? "DZD",
+                    selectedRooms: roomsList,
+                    searchParams:  { checkIn, checkOut, rooms },
+                },
+            });
+            return;
+        }
+
+        // ── Path 2: fallback auto-select (no room chosen yet) ───────────────────
         if (!preloadedRooms.length || !checkIn || !checkOut) {
             navigate(buildHotelUrl(hotel.Id));
             return;
         }
 
-        // ── Pick first available boarding type
         const firstBoardingCode = preloadedRooms[0]?.boardingCode ?? null;
         const boardingRooms     = preloadedRooms.filter((r) => r.boardingCode === firstBoardingCode);
 
-        // ── Auto-select cheapest room per pax slot
         const selectedRoomsList = rooms.map((room) => {
             const adultCount    = room.adults ?? 2;
             const matchingRooms = boardingRooms.filter((r) => r.adults === adultCount);
@@ -372,20 +408,19 @@ function SearchResultsPage() {
 
         const totalPrice = selectedRoomsList.reduce((acc, r) => acc + r.total, 0);
 
-        const bookingData = {
-            hotelId:      hotel.Id,
-            hotelName:    hotel.Name,
-            checkIn,
-            checkOut,
-            nights,
-            boardingType: firstBoardingCode,
-            rooms:        selectedRoomsList,
-            totalPrice,
-            currency:     hotel.pricing?.currency ?? "DZD",
-        };
-
         navigate(`/booking/${hotel.Id}`, {
-            state: { ...bookingData, hotel },
+            state: {
+                hotel,
+                hotelId:      hotel.Id,
+                hotelName:    hotel.Name,
+                checkIn,
+                checkOut,
+                nights,
+                boardingType: firstBoardingCode,
+                rooms:        selectedRoomsList,
+                totalPrice,
+                currency:     hotel.pricing?.currency ?? "DZD",
+            },
         });
     }, [navigate, buildHotelUrl, rooms, checkIn, checkOut, nights]);
 
@@ -402,7 +437,6 @@ function SearchResultsPage() {
         return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
     };
 
-    // ── Country banner helper ───────────────────────────────────────────────────
     const getBannerImage = () => {
         const key   = (countryName ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         const match = Object.keys(COUNTRY_BANNERS).find((k) => key.includes(k));
@@ -612,7 +646,7 @@ function SearchResultsPage() {
                                 pricing={hotel.pricing}
                                 preloadedAvailability={hotel.preloadedRooms ?? null}
                                 onFavoriteToggle={handleFavoriteToggle}
-                                onBook={() => handleBookHotel(hotel)}
+                                onBook={handleBookHotel}
                                 onViewDetail={handleViewHotelDetail}
                                 showBookButton={true}
                                 nights={nights}

@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import {
-    User, Mail, Phone, MapPin, Globe, FileText,
-    Calendar, BedDouble, CreditCard, Building2,
+    User, Mail, Phone, MapPin,
+    Calendar, CreditCard, Building2,
     Home, ChevronRight, AlertCircle, Baby,
 } from "lucide-react";
 
@@ -61,20 +61,39 @@ function TextInput({ error, ...props }) {
     );
 }
 
+// ─── Normalize a room's children from bookingState into { count, ages[] }
+// room.children can be:
+//   • a number  → e.g. 2           (from SearchResultsPage)
+//   • an array  → e.g. [5, 8]      (from HotelDetails — childAges)
+const normalizeChildren = (room) => {
+    const raw = room.children;
+    if (Array.isArray(raw)) {
+        // raw is already an array of ages
+        return { count: raw.length, ages: raw };
+    }
+    // raw is a number — ages come from childAges if present
+    const count = raw ?? 0;
+    const ages  = Array.isArray(room.childAges) ? room.childAges : [];
+    return { count, ages };
+};
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 export default function GuestInfoForm({ bookingState, onSubmit }) {
 
     const [formData, setFormData] = useState(() => ({
         contact: { fullName: "", email: "", phone: "", address: "" },
-        rooms: bookingState.rooms.map((room) => ({
-            adults: Array.from({ length: room.adults ?? 1 }, () => ({
-                firstName: "", lastName: "", nationality: "", passport: "", birthDate: "",
-            })),
-            children: Array.from({ length: room.children ?? 0 }, (_, ci) => ({
-                firstName: "",
-                age: room.childAges?.[ci] ?? "",
-            })),
-        })),
+        rooms: bookingState.rooms.map((room) => {
+            const { count, ages } = normalizeChildren(room);
+            return {
+                adults: Array.from({ length: room.adults ?? 1 }, () => ({
+                    firstName: "", lastName: ""
+                })),
+                children: Array.from({ length: count }, (_, ci) => ({
+                    firstName: "",
+                    age: ages[ci] ?? "",
+                })),
+            };
+        }),
         paymentMethod: "agency",
     }));
 
@@ -154,14 +173,6 @@ export default function GuestInfoForm({ bookingState, onSubmit }) {
                     errs[`rooms.${ri}.adults.${ai}.firstName`] = "Requis";
                 if (!adult.lastName.trim())
                     errs[`rooms.${ri}.adults.${ai}.lastName`] = "Requis";
-                if (!adult.nationality.trim())
-                    errs[`rooms.${ri}.adults.${ai}.nationality`] = "Requis";
-                if (!adult.passport.trim())
-                    errs[`rooms.${ri}.adults.${ai}.passport`] = "Requis";
-                else if (adult.passport.trim().length < 6)
-                    errs[`rooms.${ri}.adults.${ai}.passport`] = "Min. 6 caractères";
-                if (!adult.birthDate)
-                    errs[`rooms.${ri}.adults.${ai}.birthDate`] = "Requis";
             });
             room.children.forEach((child, ci) => {
                 if (!child.firstName.trim())
@@ -316,46 +327,6 @@ export default function GuestInfoForm({ bookingState, onSubmit }) {
                                                 error={errors[`rooms.${ri}.adults.${ai}.lastName`]}
                                             />
                                         </Field>
-                                        <Field
-                                            label="Nationalité"
-                                            icon={Globe}
-                                            error={errors[`rooms.${ri}.adults.${ai}.nationality`]}
-                                        >
-                                            <TextInput
-                                                type="text"
-                                                placeholder="ex: Algérienne"
-                                                value={adult.nationality}
-                                                onChange={(e) => updateAdult(ri, ai, "nationality", e.target.value)}
-                                                error={errors[`rooms.${ri}.adults.${ai}.nationality`]}
-                                            />
-                                        </Field>
-                                        <Field
-                                            label="N° Passeport"
-                                            icon={FileText}
-                                            error={errors[`rooms.${ri}.adults.${ai}.passport`]}
-                                        >
-                                            <TextInput
-                                                type="text"
-                                                placeholder="ex: AB123456"
-                                                value={adult.passport}
-                                                onChange={(e) => updateAdult(ri, ai, "passport", e.target.value)}
-                                                error={errors[`rooms.${ri}.adults.${ai}.passport`]}
-                                            />
-                                        </Field>
-                                        <div className="sm:col-span-2">
-                                            <Field
-                                                label="Date de naissance"
-                                                icon={Calendar}
-                                                error={errors[`rooms.${ri}.adults.${ai}.birthDate`]}
-                                            >
-                                                <TextInput
-                                                    type="date"
-                                                    value={adult.birthDate}
-                                                    onChange={(e) => updateAdult(ri, ai, "birthDate", e.target.value)}
-                                                    error={errors[`rooms.${ri}.adults.${ai}.birthDate`]}
-                                                />
-                                            </Field>
-                                        </div>
                                     </div>
                                 </div>
                             ))}
@@ -379,13 +350,13 @@ export default function GuestInfoForm({ bookingState, onSubmit }) {
                                             </div>
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                 <Field
-                                                    label="Prénom"
+                                                    label="Nom & Prénom"
                                                     icon={User}
                                                     error={errors[`rooms.${ri}.children.${ci}.firstName`]}
                                                 >
                                                     <TextInput
                                                         type="text"
-                                                        placeholder="Prénom de l'enfant"
+                                                        placeholder="Nom & Prénom de l'enfant"
                                                         value={child.firstName}
                                                         onChange={(e) => updateChild(ri, ci, "firstName", e.target.value)}
                                                         error={errors[`rooms.${ri}.children.${ci}.firstName`]}
@@ -436,7 +407,6 @@ export default function GuestInfoForm({ bookingState, onSubmit }) {
                         );
                     })}
                 </div>
-                {/* Content placeholder — to be built per payment method later */}
                 <div className="mt-4 p-5 bg-gray-50 border border-dashed border-gray-200 rounded-xl flex items-center justify-center gap-2.5">
                     <div className="w-2 h-2 rounded-full bg-gray-300 animate-pulse" />
                     <p className="text-sm text-gray-400 font-medium">
@@ -464,8 +434,7 @@ export default function GuestInfoForm({ bookingState, onSubmit }) {
             {/* ── Submit button ── */}
             <button
                 type="submit"
-                className="w-full flex items-center justify-center gap-2.5 py-4 bg-gradient-to-r from-orange-500 to-orange-700 hover:from-orange-600 hover:to-orange-800 text-white text-base font-extrabold
-                 rounded-2xl shadow-lg shadow-sky-200/60 transition-all active:scale-[0.98]"
+                className="w-full flex items-center justify-center gap-2.5 py-4 bg-gradient-to-r from-orange-500 to-orange-700 hover:from-orange-600 hover:to-orange-800 text-white text-base font-extrabold rounded-2xl shadow-lg shadow-sky-200/60 transition-all active:scale-[0.98]"
             >
                 Continuer vers la confirmation
                 <ChevronRight size={18} />

@@ -20,7 +20,15 @@ const getDefaultCheckIn = () => {
 const getDefaultCheckOut = () => {
     const d = new Date(); d.setDate(d.getDate() + 2); d.setHours(0, 0, 0, 0); return d;
 };
-const toDateString = (date) => (date instanceof Date ? date.toISOString().split("T")[0] : null);
+
+const toDateString = (date) => {
+    if (!(date instanceof Date)) return null;
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+};
+
 const toDateObject = (str) => {
     if (!str) return null;
     const d = new Date(str); d.setHours(0, 0, 0, 0);
@@ -29,7 +37,7 @@ const toDateObject = (str) => {
 
 const BOARDING_LABELS = {
     RO: "Chambre Seule", BB: "Bed & Breakfast", HB: "Demi-Pension",
-    FB: "Pension Complète", AI: "Tout Inclus", SC: "Self Catering",
+    FB: "Pension Complète", AI: "Tout Inclus",   SC: "Self Catering",
 };
 
 const BOARDING_BADGE_STYLES = {
@@ -81,18 +89,37 @@ const BOARDING_TAB_STYLES = {
 
 const makeDefaultRoom = () => ({ id: Date.now(), adults: 2, children: [] });
 
+// ✅ FIX — handles all 3 incoming shapes for room.children:
+//   Shape A — { childAges: [5, 8] }            from BookingHotels direct navigate
+//   Shape B — { children: 2, childAges: [5,8] } from buildHotelUrl (normalized)
+//   Shape C — { children: [5, 8] }              legacy / direct URL typing
 function parseRoomsParam(searchParams) {
     const roomsParam = searchParams.get("rooms");
     if (!roomsParam) return [makeDefaultRoom()];
     try {
-        return JSON.parse(decodeURIComponent(roomsParam)).map((r, idx) => ({
-            id:       idx + 1,
-            adults:   r.adults ?? 2,
-            children: Array.isArray(r.childAges)
-                ? r.childAges.map((age, ci) => ({ id: ci + 1, age: age ?? 5 }))
-                : Array.from({ length: r.children ?? 0 }, (_, ci) => ({ id: ci + 1, age: 5 })),
-        }));
-    } catch { return [makeDefaultRoom()]; }
+        return JSON.parse(decodeURIComponent(roomsParam)).map((r, idx) => {
+            let children;
+            if (Array.isArray(r.childAges) && r.childAges.length > 0) {
+                children = r.childAges.map((age, ci) => ({
+                    id:  ci + 1,
+                    age: typeof age === "number" ? age : (age?.age ?? 5),
+                }));
+            } else if (Array.isArray(r.children)) {
+                children = r.children.map((age, ci) => ({
+                    id:  ci + 1,
+                    age: typeof age === "number" ? age : (age?.age ?? 5),
+                }));
+            } else {
+                children = Array.from(
+                    { length: typeof r.children === "number" ? r.children : 0 },
+                    (_, ci) => ({ id: ci + 1, age: 5 })
+                );
+            }
+            return { id: idx + 1, adults: r.adults ?? 2, children };
+        });
+    } catch {
+        return [makeDefaultRoom()];
+    }
 }
 
 const normalizeImage = (img) =>
@@ -164,7 +191,9 @@ function HotelDetails() {
     }, [availableRooms]);
 
     const filteredRooms = useMemo(
-        () => !activeBoardingTab ? availableRooms : availableRooms.filter((r) => r.boardingCode === activeBoardingTab),
+        () => !activeBoardingTab
+            ? availableRooms
+            : availableRooms.filter((r) => r.boardingCode === activeBoardingTab),
         [availableRooms, activeBoardingTab]
     );
 
@@ -180,7 +209,9 @@ function HotelDetails() {
         for (let i = 0; i < effectiveRoomsByPax.length; i++) {
             const roomId = selectedRoomTypes[i];
             if (!roomId) return 0;
-            const room = effectiveRoomsByPax[i]?.rooms.find((r) => r.id === roomId && r.boardingCode === activeBoardingTab);
+            const room = effectiveRoomsByPax[i]?.rooms.find(
+                (r) => r.id === roomId && r.boardingCode === activeBoardingTab
+            );
             if (!room?.price) return 0;
             total += room.price * nights;
         }
@@ -222,11 +253,10 @@ function HotelDetails() {
     const hotelAddress     = hotelData?.Address ?? hotelData?.Adress ?? "";
     const facilities       = Array.isArray(hotelData?.Facilities) ? hotelData.Facilities.slice(0, 12) : [];
 
-    // ── Localization coords (API field names are swapped — Longitude holds lat, Latitude holds lng)
-    const geoLat     = hotelData?.Localization?.Longitude ?? null;
-    const geoLng     = hotelData?.Localization?.Latitude  ?? null;
-    const hasCoords  = !!(geoLat && geoLng);
-    const mapsUrl    = hasCoords ? `https://maps.google.com/?q=${geoLat},${geoLng}` : null;
+    const geoLat      = hotelData?.Localization?.Longitude ?? null;
+    const geoLng      = hotelData?.Localization?.Latitude  ?? null;
+    const hasCoords   = !!(geoLat && geoLng);
+    const mapsUrl     = hasCoords ? `https://maps.google.com/?q=${geoLat},${geoLng}` : null;
     const osmEmbedUrl = hasCoords
         ? `https://www.openstreetmap.org/export/embed.html?bbox=${parseFloat(geoLng) - 0.05},${parseFloat(geoLat) - 0.05},${parseFloat(geoLng) + 0.05},${parseFloat(geoLat) + 0.05}&layer=mapnik&marker=${geoLat},${geoLng}`
         : null;
@@ -289,11 +319,15 @@ function HotelDetails() {
         }
     }, [hotelData, handleSearchRooms]);
 
+    // ✅ FIX: search in pax.rooms (same source as computedTotalPrice), not filteredRooms
     const handleReserve = useCallback(() => {
-        if (!allSelected) { toast.error("Veuillez sélectionner un type de chambre pour chaque chambre"); return; }
+        if (!allSelected)           { toast.error("Veuillez sélectionner un type de chambre pour chaque chambre"); return; }
         if (computedTotalPrice <= 0) { toast.error("Veuillez rechercher les disponibilités d'abord"); return; }
+
         const selectedRoomsList = effectiveRoomsByPax.map((pax, i) => {
-            const sel = filteredRooms.find((r) => r.id === selectedRoomTypes[i]);
+            const sel = pax.rooms.find(
+                (r) => r.id === selectedRoomTypes[i] && r.boardingCode === activeBoardingTab
+            );
             return {
                 roomType:  sel?.name,
                 roomId:    sel?.id,
@@ -301,9 +335,10 @@ function HotelDetails() {
                 children:  rooms[i]?.children.length ?? 0,
                 childAges: rooms[i]?.children.map((c) => c.age) ?? [],
                 price:     sel?.price,
-                total:     sel ? sel.price * nights : 0,
+                total:     sel?.price ? sel.price * nights : 0,
             };
         });
+
         const bookingData = {
             hotelId:      Number(hotelId),
             hotelName:    hotelData?.Name,
@@ -317,8 +352,8 @@ function HotelDetails() {
         };
         navigate(`/booking/${hotelId}`, { state: { ...bookingData, hotel: hotelData } });
         toast.success("Redirection vers la réservation...");
-    }, [allSelected, computedTotalPrice, effectiveRoomsByPax, filteredRooms, selectedRoomTypes,
-        rooms, hotelId, hotelData, checkInDate, checkOutDate, activeBoardingTab, navigate, nights]);
+    }, [allSelected, computedTotalPrice, effectiveRoomsByPax, selectedRoomTypes, activeBoardingTab,
+        rooms, hotelId, hotelData, checkInDate, checkOutDate, navigate, nights]);
 
     // ── Guards ────────────────────────────────────────────────────────────────
     if (!hotelId) return (
@@ -326,9 +361,12 @@ function HotelDetails() {
             <AlertCircle size={40} className="text-red-400" />
             <h2 className="text-xl font-bold text-gray-700">URL Invalide</h2>
             <p className="text-gray-500 text-sm">Aucun identifiant d'hôtel trouvé dans l'URL.</p>
-            <button onClick={() => navigate("/")} className="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-semibold transition-all shadow-md">Retour à l'accueil</button>
+            <button onClick={() => navigate("/")} className="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-semibold transition-all shadow-md">
+                Retour à l'accueil
+            </button>
         </div>
     );
+
     if (isLoading) return (
         <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-slate-100 flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
@@ -343,6 +381,7 @@ function HotelDetails() {
             </div>
         </div>
     );
+
     if (isError || !hotelData) return (
         <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4">
             <div className="w-16 h-16 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center">
@@ -350,7 +389,9 @@ function HotelDetails() {
             </div>
             <h2 className="text-xl font-bold text-gray-700">Hôtel Non Trouvé</h2>
             <p className="text-gray-500 text-sm">{error?.message || "Impossible de charger les informations de l'hôtel"}</p>
-            <button onClick={() => navigate(-1)} className="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-semibold transition-all shadow-md">Retour</button>
+            <button onClick={() => navigate(-1)} className="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-semibold transition-all shadow-md">
+                Retour
+            </button>
         </div>
     );
 
@@ -359,9 +400,7 @@ function HotelDetails() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-sky-50/70 via-white to-slate-100/80">
 
-            {/* ══════════════════════════════════════════════════════════════════
-                ── LIGHTBOX
-            ══════════════════════════════════════════════════════════════════ */}
+            {/* ══════════════════ LIGHTBOX ══════════════════ */}
             {selectedImageIndex !== null && (
                 <div
                     className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center"
@@ -431,7 +470,7 @@ function HotelDetails() {
                     Retour aux Hôtels
                 </button>
 
-                {/* ── Hero ── */}
+                {/* ══════════════════ HERO ══════════════════ */}
                 <div className="relative h-[360px] sm:h-[480px] rounded-2xl overflow-hidden mb-6 shadow-xl">
                     <img
                         src={allImages[mainImageIndex]?.Url ?? "https://loremflickr.com/1200/500/hotel,luxury?lock=1"}
@@ -454,7 +493,9 @@ function HotelDetails() {
                                 </span>
                             )}
                         </div>
-                        <h1 className="text-3xl sm:text-5xl font-extrabold text-white drop-shadow-xl leading-tight tracking-tight">{Name}</h1>
+                        <h1 className="text-3xl sm:text-5xl font-extrabold text-white drop-shadow-xl leading-tight tracking-tight">
+                            {Name}
+                        </h1>
                         <p className="flex items-center gap-2 text-white/80 text-base font-semibold">
                             <MapPin size={16} className="text-white/70 shrink-0" />
                             {City?.Name}{City?.Country?.Name ? `, ${City.Country.Name}` : ""}
@@ -475,7 +516,9 @@ function HotelDetails() {
                                     key={i}
                                     onClick={() => setMainImageIndex(i)}
                                     className={`rounded-full transition-all ${
-                                        mainImageIndex === i ? "bg-white w-2.5 h-8 shadow-sm" : "bg-white/50 hover:bg-white/80 w-2.5 h-2.5"
+                                        mainImageIndex === i
+                                            ? "bg-white w-2.5 h-8 shadow-sm"
+                                            : "bg-white/50 hover:bg-white/80 w-2.5 h-2.5"
                                     }`}
                                 />
                             ))}
@@ -483,7 +526,7 @@ function HotelDetails() {
                     )}
                 </div>
 
-                {/* ── Quick Info Cards ── */}
+                {/* ══════════════════ QUICK INFO CARDS ══════════════════ */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                     {Category && (
                         <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-shadow flex items-center gap-3.5">
@@ -531,7 +574,7 @@ function HotelDetails() {
                     )}
                 </div>
 
-                {/* ── Tags & Themes ── */}
+                {/* ══════════════════ TAGS & THEMES ══════════════════ */}
                 {(Theme?.length > 0 || Tags?.length > 0) && (
                     <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm mb-6">
                         <h3 className="text-base font-bold text-gray-800 mb-4 flex items-center gap-2.5">
@@ -553,12 +596,10 @@ function HotelDetails() {
                     </div>
                 )}
 
-                {/* ══════════════════════════════════════════════════════════════
-                    ── GALLERY + LOCATION
-                ══════════════════════════════════════════════════════════════ */}
+                {/* ══════════════════ GALLERY + LOCATION ══════════════════ */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
 
-                    {/* ── GALLERY ── */}
+                    {/* ── Gallery ── */}
                     {allImages.length > 0 && (
                         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                             <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-gray-100">
@@ -641,7 +682,9 @@ function HotelDetails() {
                                                 key={i}
                                                 onClick={() => setSelectedImageIndex(i)}
                                                 className={`relative shrink-0 w-14 h-10 rounded-lg overflow-hidden border-2 transition-all duration-200 hover:scale-105 ${
-                                                    i < 3 ? "border-sky-400 opacity-100 shadow-sm" : "border-transparent opacity-60 hover:opacity-100 hover:border-sky-300"
+                                                    i < 3
+                                                        ? "border-sky-400 opacity-100 shadow-sm"
+                                                        : "border-transparent opacity-60 hover:opacity-100 hover:border-sky-300"
                                                 }`}
                                             >
                                                 <img src={img.Url} alt={img.Alt} className="w-full h-full object-cover" />
@@ -663,12 +706,8 @@ function HotelDetails() {
                         </div>
                     )}
 
-                    {/* ══════════════════════════════════════════════════════
-                        ── LOCATION & CONTACT — ENHANCED
-                    ══════════════════════════════════════════════════════ */}
+                    {/* ── Location & Contact ── */}
                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-
-                        {/* Header band */}
                         <div className="bg-gradient-to-r from-sky-600 to-sky-700 px-5 py-4 flex items-center gap-3">
                             <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
                                 <MapPin size={18} className="text-white" />
@@ -684,8 +723,6 @@ function HotelDetails() {
                                 </span>
                             )}
                         </div>
-
-                        {/* ── Embedded OpenStreetMap mini-map ── */}
                         {osmEmbedUrl && (
                             <div className="relative w-full h-44 overflow-hidden border-b border-gray-100">
                                 <iframe
@@ -696,7 +733,6 @@ function HotelDetails() {
                                     loading="lazy"
                                     scrolling="no"
                                 />
-                                {/* Transparent overlay → opens full map on click */}
                                 <a
                                     href={mapsUrl}
                                     target="_blank"
@@ -709,11 +745,7 @@ function HotelDetails() {
                                 </a>
                             </div>
                         )}
-
-                        {/* Body */}
                         <div className="flex flex-col flex-1 p-5 gap-4">
-
-                            {/* City + Country */}
                             {City?.Name && (
                                 <div className="flex items-start gap-3">
                                     <div className="w-8 h-8 rounded-lg bg-sky-50 border border-sky-100 flex items-center justify-center shrink-0 mt-0.5">
@@ -728,8 +760,6 @@ function HotelDetails() {
                                     </div>
                                 </div>
                             )}
-
-                            {/* Address */}
                             {hotelAddress && (
                                 <>
                                     <div className="border-t border-gray-100" />
@@ -744,8 +774,6 @@ function HotelDetails() {
                                     </div>
                                 </>
                             )}
-
-                            {/* GPS Coordinates chips */}
                             {hasCoords && (
                                 <>
                                     <div className="border-t border-gray-100" />
@@ -764,10 +792,7 @@ function HotelDetails() {
                                     </div>
                                 </>
                             )}
-
                             <div className="flex-1" />
-
-                            {/* Google Maps CTA */}
                             {mapsUrl ? (
                                 <a
                                     href={mapsUrl}
@@ -788,7 +813,7 @@ function HotelDetails() {
                     </div>
                 </div>
 
-                {/* ── Description ── */}
+                {/* ══════════════════ DESCRIPTION ══════════════════ */}
                 {hotelDescription && (
                     <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mb-6">
                         <div className="flex items-center gap-3 mb-4">
@@ -799,7 +824,7 @@ function HotelDetails() {
                     </div>
                 )}
 
-                {/* ── Facilities ── */}
+                {/* ══════════════════ FACILITIES ══════════════════ */}
                 {facilities.length > 0 && (
                     <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mb-6">
                         <div className="flex items-center gap-3 mb-5">
@@ -830,7 +855,7 @@ function HotelDetails() {
                     </div>
                 )}
 
-                {/* ── Main Grid: Availability + Sidebar ── */}
+                {/* ══════════════════ MAIN GRID: AVAILABILITY + SIDEBAR ══════════════════ */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
                     {/* ── Availability panel ── */}
@@ -860,9 +885,9 @@ function HotelDetails() {
                             </div>
                         )}
 
+                        {/* Results panel */}
                         {!isSearchingRooms && hasSearched && (
                             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                                {/* Header */}
                                 <div className="bg-gradient-to-r from-sky-600 to-sky-700 px-6 py-4 flex items-center justify-between">
                                     <div>
                                         <h2 className="text-base font-extrabold text-white">Résultats de disponibilité</h2>
@@ -923,7 +948,7 @@ function HotelDetails() {
                                                 </div>
                                             </div>
 
-                                            {/* Room slots */}
+                                            {/* Room selectors per pax */}
                                             <div className="flex flex-col gap-3 mb-5">
                                                 {effectiveRoomsByPax.map((pax, idx) => {
                                                     const paxRooms     = pax.rooms.filter((r) => r.boardingCode === activeBoardingTab);
@@ -949,7 +974,14 @@ function HotelDetails() {
                                                                         <span className="text-sm font-bold text-gray-700">
                                                                             Chambre {idx + 1}
                                                                             <span className="mx-1.5 text-gray-300">·</span>
-                                                                            <span className="text-sky-600">{pax.adults} adulte{pax.adults > 1 ? "s" : ""}</span>
+                                                                            <span className="text-sky-600">
+                                                                                {pax.adults} adulte{pax.adults > 1 ? "s" : ""}
+                                                                            </span>
+                                                                            {rooms[idx]?.children.length > 0 && (
+                                                                                <span className="text-amber-500 ml-1.5">
+                                                                                    · {rooms[idx].children.length} enfant{rooms[idx].children.length > 1 ? "s" : ""}
+                                                                                </span>
+                                                                            )}
                                                                         </span>
                                                                     </div>
                                                                     {isSlotDone && (
@@ -1003,7 +1035,7 @@ function HotelDetails() {
                                                 })}
                                             </div>
 
-                                            {/* Total price bar */}
+                                            {/* Total price banner */}
                                             {computedTotalPrice > 0 && (
                                                 <div className="bg-gradient-to-r from-sky-600 to-blue-700 rounded-2xl p-5 shadow-lg shadow-sky-200/60">
                                                     <div className="flex items-start justify-between flex-wrap gap-3">
@@ -1038,6 +1070,7 @@ function HotelDetails() {
                                             )}
                                         </>
                                     ) : (
+                                        /* Empty state */
                                         <div className="text-center py-12">
                                             <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center mx-auto mb-4">
                                                 <AlertCircle size={28} className="text-amber-400" />
@@ -1053,14 +1086,12 @@ function HotelDetails() {
                         )}
                     </div>
 
-                    {/* ══════════════════════════════════════════════════════
-                        ── SIDEBAR
-                    ══════════════════════════════════════════════════════ */}
+                    {/* ══════════════════ SIDEBAR ══════════════════ */}
                     <div className="flex flex-col gap-4 relative z-50">
-                        <div className="bg-white rounded-2xl border border-gray-100 shadow-lg overflow-hidden sticky top-24">
+                        <div className="bg-white rounded-2xl border border-gray-100 shadow-lg overflow-visible sticky top-24">
 
-                            {/* Gradient header */}
-                            <div className="bg-gradient-to-br from-sky-600 via-sky-700 to-blue-800 px-5 pt-5 pb-8">
+                            {/* Sidebar header */}
+                            <div className="bg-gradient-to-br from-sky-600 via-sky-700 to-blue-800 px-5 pt-5 pb-8 overflow-hidden rounded-t-2xl">
                                 <h3 className="text-base font-extrabold text-white leading-tight">{Name}</h3>
                                 <p className="text-sky-300 text-xs font-medium mt-0.5 flex items-center gap-1.5">
                                     <MapPin size={11} /> {City?.Name}{City?.Country?.Name ? `, ${City.Country.Name}` : ""}
@@ -1074,11 +1105,13 @@ function HotelDetails() {
                                 )}
                             </div>
 
-                            {/* Pull-up white body */}
+                            {/* Sidebar body */}
                             <div className="bg-white rounded-t-2xl -mt-4 relative z-10 px-5 pt-5 pb-5">
-                                <p className="text-[10px] text-gray-400 uppercase tracking-widest font-extrabold mb-3">Réserver votre séjour</p>
+                                <p className="text-[10px] text-gray-400 uppercase tracking-widest font-extrabold mb-3">
+                                    Réserver votre séjour
+                                </p>
 
-                                {/* Dates */}
+                                {/* Date picker */}
                                 <div className="mb-4">
                                     <label className="text-xs text-gray-500 font-semibold mb-1.5 flex items-center gap-1.5">
                                         <Calendar size={11} className="text-sky-500" /> Dates du séjour
@@ -1094,7 +1127,7 @@ function HotelDetails() {
                                     )}
                                 </div>
 
-                                {/* Guests */}
+                                {/* Guest/room selector */}
                                 <div className="mb-4">
                                     <label className="text-xs text-gray-500 font-semibold mb-1.5 flex items-center gap-1.5">
                                         <Users size={11} className="text-sky-500" /> Voyageurs & Chambres
@@ -1109,13 +1142,18 @@ function HotelDetails() {
                                     className="w-full flex items-center justify-center gap-2 py-3.5 bg-sky-600 hover:bg-sky-700 disabled:bg-gray-300 text-white text-sm font-bold rounded-xl transition-all shadow-md shadow-sky-200/60 mb-4 active:scale-[0.98]"
                                 >
                                     {isSearchingRooms ? (
-                                        <><div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" /> Recherche...</>
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                                            Recherche...
+                                        </>
                                     ) : (
-                                        <><Calendar size={14} /> Vérifier les disponibilités</>
+                                        <>
+                                            <Calendar size={14} /> Vérifier les disponibilités
+                                        </>
                                     )}
                                 </button>
 
-                                {/* Total price */}
+                                {/* Total price display */}
                                 {computedTotalPrice > 0 && (
                                     <div className="bg-gradient-to-br from-sky-50 to-blue-50 border border-sky-200 rounded-2xl p-4 mb-4 text-center">
                                         <p className="text-[10px] text-sky-500 uppercase tracking-widest font-extrabold mb-1.5">Total du séjour</p>
@@ -1131,7 +1169,7 @@ function HotelDetails() {
                                     </div>
                                 )}
 
-                                {/* Reserve button — pulse ring when ready */}
+                                {/* Reserve button */}
                                 <div className={`relative ${allSelected && computedTotalPrice > 0 ? "before:absolute before:inset-0 before:rounded-xl before:bg-orange-400/40 before:animate-ping before:scale-105" : ""}`}>
                                     <button
                                         onClick={handleReserve}
